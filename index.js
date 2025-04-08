@@ -37,28 +37,37 @@ if (links.length > 0) {
 await browser.close();
 
 
-// ========== 🔻 Helper Functions 🔻 ==========
+// ========== Helper Functions ==========
 
 async function setUserAgent(page) {
+    //TODO: Because setting the UA is already a single DevTools call, there’s essentially no “speed” left to squeeze out of a wrapper function—but you can eliminate that call entirely at runtime by moving your UA override into the browser launch/session parameters. Here are two approaches:
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
   );
+  console.log("🔧 User agent set to Chrome 119 on Windows 10.");
 }
 
 async function goToGoogle(page) {
+    //NOT much here to speed up unless we modify the config code
   await page.goto("https://www.google.com", { waitUntil: "domcontentloaded" });
 }
 
 async function acceptCookies(page) {
-  try {
-    const consentBtn = 'form[action*="consent"] button';
-    await page.waitForSelector(consentBtn, { timeout: 5000 });
-    await page.click(consentBtn);
-    console.log("✅ Accepted cookie consent.");
-  } catch {
-    console.log("ℹ️ No consent screen detected.");
+    const clicked = await page.evaluate(() => {
+      const btn = document.querySelector('form[action*="consent"] button');
+      if (btn) {
+        btn.click();
+        return true;
+      }
+      return false;
+    });
+  
+    if (clicked) {
+      console.log("✅ Accepted cookie consent.");
+    } else {
+      console.log("ℹ️ No consent screen detected.");
+    }
   }
-}
 
 import { setTimeout } from "node:timers/promises";  // Node.js ≥ 15
 
@@ -79,27 +88,29 @@ async function searchFacebookPage(page, businessName, personName) {
 }
 
 
+// Fastest possible “all links” version - this still gets all the links
 async function scrapeGoogleLinks(page) {
-  const links = await page.$$eval("a h3", (headings) =>
-    headings.map((h) => h.parentElement.href)
-  );
-  console.log("🔗 Scraped Links:\n", links);
-  return links;
-}
+    // One DevTools round‑trip, no extra logging inside
+    return page.evaluate(() =>
+      Array.from(document.querySelectorAll("a h3"), h => h.parentElement.href)
+    );  // :contentReference[oaicite:0]{index=0}
+  }
+
+//even faster version but this time we only get the first link - this code is experimental and may not work all the time
+// Even faster: grab just the first link
+// async function getFirstGoogleLink(page) {
+//     return page.evaluate(() => {
+//       const h = document.querySelector("a h3");
+//       return h ? h.parentElement.href : null;
+//     });  // :contentReference[oaicite:1]{index=1}
+//   }
+  
 
 function getFacebookAboutURL(fbLink) {
-  try {
-    const url = new URL(fbLink);
-    let pathname = url.pathname.replace(/\/$/, '');
-    const match = pathname.match(/^\/([^\/?#]+)/);
-    if (!match) throw new Error("Invalid Facebook page link");
-
-    return `${url.origin}/${match[1]}/about`;
-  } catch (err) {
-    console.error("⚠️ Invalid URL format:", err.message);
-    return null;
+    // Inline regex literal: (origin/)(username or ID)
+    const m = /^(https?:\/\/[^\/]+\/)([^\/?#]+)/.exec(fbLink);
+    return m ? `${m[1]}${m[2]}/about` : null;
   }
-}
 
 async function visitFacebookAbout(page, aboutUrl) {
   console.log("📘 Navigating to About:", aboutUrl);
