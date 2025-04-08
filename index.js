@@ -2,7 +2,7 @@ import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { config } from "dotenv";
 import { connect } from "puppeteer-core";
 
-config();  // Load .env if needed
+config(); //TODO fix .env and API key issue
 
 const client = new Hyperbrowser({
   apiKey: "hb_39dbccf019ab326fe91bbf4f3a67",
@@ -13,140 +13,111 @@ const session = await client.sessions.create();
 const browser = await connect({
   browserWSEndpoint: session.wsEndpoint,
   defaultViewport: null,
-  headless: false,  // Show browser window (for debugging)
+  headless: false,
 });
 
 const [page] = await browser.pages();
 
-//  Set user agent to avoid bot detection
-await page.setUserAgent(
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
-);
+await setUserAgent(page);
+await goToGoogle(page);
+await acceptCookies(page);
+await searchFacebookPage(page, "Valley Smile Dental Pleasanton CA", "Dr. Kamlesh Jinjuwadia");
 
-//  1. Go to Google
-await page.goto("https://www.google.com");
-
-//  2. Try to accept cookie consent (if it appears)
-try {
-  const consentBtn = 'form[action*="consent"] button';
-  await page.waitForSelector(consentBtn, { timeout: 5000 });
-  await page.click(consentBtn);
-  console.log("Accepted cookie consent.");
-} catch (err) {
-  console.log("No consent screen detected.");
-}
-
-//  3. Wait for search box (support both input + textarea)
-const searchBox = 'input[name="q"], textarea[name="q"]';
-await page.waitForSelector(searchBox, { visible: true, timeout: 60000 });
-await page.click(searchBox);
-
-console.log("Search box is visible.");
-
-// 4. Type query with delay
-const businessName = "Valley Smile Dental Pleasanton CA";
-const personName = "Dr. Kamlesh Jinjuwadia";
-
-const searchQuery = `site:facebook.com ${businessName} ${personName}`;
-
-await page.type(searchBox, searchQuery, { delay: 100 });
-
-console.log("Typed query: site:", searchQuery);
-
-// 5. Press Enter
-await page.keyboard.press("Enter");
-
-console.log("Searching for: site:", searchQuery);
-
-// 6. Wait for search results
-await page.waitForNavigation({ waitUntil: "domcontentloaded" });
-
-console.log("Search results loaded.");
-
-// 7. Scrape result links
-const links = await page.$$eval("a h3", (headings) =>
-  headings.map((h) => h.parentElement.href)
-);
-
-console.log("Scraped Links:\n", links);
-
-// Go to the first result link
+const links = await scrapeGoogleLinks(page);
 if (links.length > 0) {
-//   console.log(`Navigating to: ${links[0]}`);
-  const fbLink = links[0];
-  const aboutLink = getFacebookAboutURL(fbLink);
-  
-  console.log(`📘 Navigating to About: ${aboutLink}`);
-
-  await page.goto(aboutLink, { waitUntil: "domcontentloaded", timeout: 60000 });
-
-//   await page.goto(links[0], { waitUntil: "domcontentloaded" });
-  console.log("Current Page URL:", page.url());
-  await page.waitForSelector("body", { visible: true });
-
-
+  const aboutLink = getFacebookAboutURL(links[0]);
+  if (aboutLink) {
+    await visitFacebookAbout(page, aboutLink);
+    await extractContactInfo(page);
+  }
 } else {
   console.log("No links found.");
 }
 
-//extracting email and phone
-// Wait for the page to be fully rendered
-await page.waitForSelector("body", { visible: true });
-
-// Get full text content of the page
-const pageContent = await page.evaluate(() => document.body.innerText);
-
-// Regex patterns for email and phone number
-const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
-const phoneRegex = /(?:\+?\d{1,3}[ -]?)?(?:\(?\d{3}\)?[ -]?)?\d{3}[ -]?\d{4}/g;
-
-// Extract matches
-const emails = pageContent.match(emailRegex);
-const phones = pageContent.match(phoneRegex);
-
-// Interpret and log results
-if (!emails && !phones) {
-  console.log("Profile appears to be private or no contact info found.");
-} else {
-  if (emails) {
-    console.log("Email(s) found:", emails);
-  } else {
-    console.log("No email address found.");
-  }
-
-  if (phones) {
-    console.log("Phone number(s) found:", phones);
-  } else {
-    console.log("No phone number found.");
-  }
-}
-
-
 await browser.close();
 
 
+// ========== 🔻 Helper Functions 🔻 ==========
 
+async function setUserAgent(page) {
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+  );
+}
 
+async function goToGoogle(page) {
+  await page.goto("https://www.google.com", { waitUntil: "domcontentloaded" });
+}
 
-//testing some functions
-function getFacebookAboutURL(fbLink) {
-    try {
-      const url = new URL(fbLink);
-  
-      // Remove any trailing slashes
-      let pathname = url.pathname.replace(/\/$/, '');
-  
-      // Match page ID or username
-      const match = pathname.match(/^\/([^\/?#]+)/);
-      if (!match) {
-        throw new Error("Invalid Facebook page link");
-      }
-  
-      // Rebuild the clean URL with /about
-      return `${url.origin}/${match[1]}/about`;
-    } catch (err) {
-      console.error("⚠️ Invalid URL format:", err.message);
-      return null;
-    }
+async function acceptCookies(page) {
+  try {
+    const consentBtn = 'form[action*="consent"] button';
+    await page.waitForSelector(consentBtn, { timeout: 5000 });
+    await page.click(consentBtn);
+    console.log("✅ Accepted cookie consent.");
+  } catch {
+    console.log("ℹ️ No consent screen detected.");
   }
-  
+}
+
+async function searchFacebookPage(page, businessName, personName) {
+  const searchBox = 'input[name="q"], textarea[name="q"]';
+  await page.waitForSelector(searchBox, { visible: true, timeout: 60000 });
+
+  const searchQuery = `site:facebook.com ${businessName} ${personName}`;
+  await page.type(searchBox, searchQuery, { delay: 100 });
+  await page.keyboard.press("Enter");
+  console.log("🔍 Searching for:", searchQuery);
+
+  await page.waitForNavigation({ waitUntil: "domcontentloaded" });
+}
+
+async function scrapeGoogleLinks(page) {
+  const links = await page.$$eval("a h3", (headings) =>
+    headings.map((h) => h.parentElement.href)
+  );
+  console.log("🔗 Scraped Links:\n", links);
+  return links;
+}
+
+function getFacebookAboutURL(fbLink) {
+  try {
+    const url = new URL(fbLink);
+    let pathname = url.pathname.replace(/\/$/, '');
+    const match = pathname.match(/^\/([^\/?#]+)/);
+    if (!match) throw new Error("Invalid Facebook page link");
+
+    return `${url.origin}/${match[1]}/about`;
+  } catch (err) {
+    console.error("⚠️ Invalid URL format:", err.message);
+    return null;
+  }
+}
+
+async function visitFacebookAbout(page, aboutUrl) {
+  console.log("📘 Navigating to About:", aboutUrl);
+  await page.goto(aboutUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForSelector("body", { visible: true });
+  console.log("🌐 Loaded About Page:", page.url());
+}
+
+async function extractContactInfo(page) {
+  await page.waitForSelector("body", { visible: true });
+  const content = await page.evaluate(() => document.body.innerText);
+
+  const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
+  const phoneRegex = /(?:\+?\d{1,3}[ -]?)?(?:\(?\d{3}\)?[ -]?)?\d{3}[ -]?\d{4}/g;
+
+  const emails = content.match(emailRegex);
+  const phones = content.match(phoneRegex);
+
+  if (!emails && !phones) {
+    console.log("🔒 Profile appears to be private or no contact info found.");
+  } else {
+    if (emails) console.log("📧 Email(s):", emails);
+    else console.log("📭 No email found.");
+
+    if (phones) console.log("📞 Phone(s):", phones);
+    else console.log("📵 No phone found.");
+  }
+}
