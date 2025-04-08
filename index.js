@@ -44,8 +44,8 @@ await page.click(searchBox);
 console.log("Search box is visible.");
 
 // 4. Type query with delay
-const businessName = "Lodi Dental Care";
-const personName = "Dr. Susana Ung";
+const businessName = "Valley Smile Dental Pleasanton CA";
+const personName = "Dr. Kamlesh Jinjuwadia";
 
 const searchQuery = `site:facebook.com ${businessName} ${personName}`;
 
@@ -72,8 +72,15 @@ console.log("Scraped Links:\n", links);
 
 // Go to the first result link
 if (links.length > 0) {
-  console.log(`Navigating to: ${links[0]}`);
-  await page.goto(links[0], { waitUntil: "domcontentloaded" });
+//   console.log(`Navigating to: ${links[0]}`);
+  const fbLink = links[0];
+  const aboutLink = getFacebookAboutURL(fbLink);
+  
+  console.log(`📘 Navigating to About: ${aboutLink}`);
+
+  await page.goto(aboutLink, { waitUntil: "domcontentloaded", timeout: 60000 });
+
+//   await page.goto(links[0], { waitUntil: "domcontentloaded" });
   console.log("Current Page URL:", page.url());
   await page.waitForSelector("body", { visible: true });
 
@@ -116,3 +123,30 @@ if (!emails && !phones) {
 
 
 await browser.close();
+
+
+
+
+
+//testing some functions
+function getFacebookAboutURL(fbLink) {
+    try {
+      const url = new URL(fbLink);
+  
+      // Remove any trailing slashes
+      let pathname = url.pathname.replace(/\/$/, '');
+  
+      // Match page ID or username
+      const match = pathname.match(/^\/([^\/?#]+)/);
+      if (!match) {
+        throw new Error("Invalid Facebook page link");
+      }
+  
+      // Rebuild the clean URL with /about
+      return `${url.origin}/${match[1]}/about`;
+    } catch (err) {
+      console.error("⚠️ Invalid URL format:", err.message);
+      return null;
+    }
+  }
+  
