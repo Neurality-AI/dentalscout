@@ -67,3 +67,51 @@ const links = await page.$$eval("a h3", (headings) =>
 );
 
 console.log("🔗 Scraped Links:\n", links);
+
+// ✅ Go to the first result link
+if (links.length > 0) {
+  console.log(`🚀 Navigating to: ${links[0]}`);
+  await page.goto(links[0], { waitUntil: "domcontentloaded" });
+  console.log("📍 Current Page URL:", page.url());
+  await page.waitForSelector("body", { visible: true });
+
+
+} else {
+  console.log("❌ No links found.");
+}
+
+//extracting email and phone
+// ✅ Wait for the page to be fully rendered
+await page.waitForSelector("body", { visible: true });
+
+// ✅ Get full text content of the page
+const pageContent = await page.evaluate(() => document.body.innerText);
+
+// ✅ Regex patterns for email and phone number
+const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
+const phoneRegex = /(?:\+?\d{1,3}[ -]?)?(?:\(?\d{3}\)?[ -]?)?\d{3}[ -]?\d{4}/g;
+
+// ✅ Extract matches
+const emails = pageContent.match(emailRegex);
+const phones = pageContent.match(phoneRegex);
+
+// ✅ Interpret and log results
+if (!emails && !phones) {
+  console.log("🔒 Profile appears to be private or no contact info found.");
+} else {
+  if (emails) {
+    console.log("📧 Email(s) found:", emails);
+  } else {
+    console.log("📭 No email address found.");
+  }
+
+  if (phones) {
+    console.log("📞 Phone number(s) found:", phones);
+  } else {
+    console.log("📵 No phone number found.");
+  }
+}
+
+
+await browser.close();
+
