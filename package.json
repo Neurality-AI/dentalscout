@@ -2,6 +2,11 @@
   "dependencies": {
     "@hyperbrowser/sdk": "^0.43.0",
     "dotenv": "^16.4.7",
-    "puppeteer": "^24.6.0"
-  }
+    "node-fetch": "^3.3.2",
+    "puppeteer": "^24.6.0",
+    "puppeteer-core": "^24.6.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "type": "module"
 }
