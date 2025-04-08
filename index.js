@@ -51,12 +51,12 @@ const searchQuery = `site:facebook.com ${businessName} ${personName}`;
 
 await page.type(searchBox, searchQuery, { delay: 100 });
 
-console.log("Typed query: site:facebook.com Lodi Dental Care Dr. Susana Ung");
+console.log("Typed query: site:", searchQuery);
 
 // 5. Press Enter
 await page.keyboard.press("Enter");
 
-console.log("Searching for: site:facebook.com Lodi Dental Care Dr. Susana Ung");
+console.log("Searching for: site:", searchQuery);
 
 // 6. Wait for search results
 await page.waitForNavigation({ waitUntil: "domcontentloaded" });
@@ -116,4 +116,3 @@ if (!emails && !phones) {
 
 
 await browser.close();
-
