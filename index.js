@@ -120,22 +120,33 @@ async function visitFacebookAbout(page, aboutUrl) {
 }
 
 async function extractContactInfo(page) {
-  await page.waitForSelector("body", { visible: true });
-  const content = await page.evaluate(() => document.body.innerText);
-
-  const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
-  const phoneRegex = /(?:\+?\d{1,3}[ -]?)?(?:\(?\d{3}\)?[ -]?)?\d{3}[ -]?\d{4}/g;
-
-  const emails = content.match(emailRegex);
-  const phones = content.match(phoneRegex);
-
-  if (!emails && !phones) {
-    console.log("🔒 Profile appears to be private or no contact info found.");
-  } else {
-    if (emails) console.log("📧 Email(s):", emails);
-    else console.log("📭 No email found.");
-
-    if (phones) console.log("📞 Phone(s):", phones);
-    else console.log("📵 No phone found.");
+    const contactInfo = await page.evaluate(() => {
+      const content = document.body.innerText;
+  
+      // Optimized regular expressions for email and phone number extraction
+      const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
+      const phoneRegex = /(?:\+?\d{1,3}[ -]?)?(?:\(?\d{3}\)?[ -]?)?\d{3}[ -]?\d{4}/g;
+  
+      const emails = content.match(emailRegex) || [];
+      const phones = content.match(phoneRegex) || [];
+  
+      return { emails, phones };
+    });
+  
+    if (contactInfo.emails.length === 0 && contactInfo.phones.length === 0) {
+      console.log("🔒 Profile appears to be private or no contact info found.");
+    } else {
+      if (contactInfo.emails.length > 0) {
+        console.log("📧 Email(s):", contactInfo.emails);
+      } else {
+        console.log("📭 No email found.");
+      }
+  
+      if (contactInfo.phones.length > 0) {
+        console.log("📞 Phone(s):", contactInfo.phones);
+      } else {
+        console.log("📵 No phone found.");
+      }
+    }
   }
-}
+  
