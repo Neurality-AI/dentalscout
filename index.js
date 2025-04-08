@@ -21,7 +21,7 @@ const [page] = await browser.pages();
 await setUserAgent(page);
 await goToGoogle(page);
 await acceptCookies(page);
-await searchFacebookPage(page, "Valley Smile Dental Pleasanton CA", "Dr. Kamlesh Jinjuwadia");
+await searchFacebookPage(page, "Lodi Dental Care", "Susana Ung");
 
 const links = await scrapeGoogleLinks(page);
 if (links.length > 0) {
@@ -60,17 +60,24 @@ async function acceptCookies(page) {
   }
 }
 
+import { setTimeout } from "node:timers/promises";  // Node.js ≥ 15
+
 async function searchFacebookPage(page, businessName, personName) {
-  const searchBox = 'input[name="q"], textarea[name="q"]';
-  await page.waitForSelector(searchBox, { visible: true, timeout: 60000 });
+  // 1. Build and go directly to the Google search URL
+  const query = `site:facebook.com ${businessName} ${personName}`;
+  const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+  console.log("🔍 Navigating directly to:", url);
 
-  const searchQuery = `site:facebook.com ${businessName} ${personName}`;
-  await page.type(searchBox, searchQuery, { delay: 100 });
-  await page.keyboard.press("Enter");
-  console.log("🔍 Searching for:", searchQuery);
+  await page.setExtraHTTPHeaders({ "accept-language": "en-US,en;q=0.9" });
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
 
-  await page.waitForNavigation({ waitUntil: "domcontentloaded" });
+  // 2. Tiny randomized pause (0.5–1 s) to mimic human think‑time
+  await setTimeout(500 + Math.random() * 500);  // replaces page.waitForTimeout :contentReference[oaicite:1]{index=1}
+
+  // 3. (Optional) subtle mouse movement to look more human
+  await page.mouse.move(100, 100);
 }
+
 
 async function scrapeGoogleLinks(page) {
   const links = await page.$$eval("a h3", (headings) =>
