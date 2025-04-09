@@ -13,13 +13,16 @@ const session = await client.sessions.create();
 const browser = await connect({
   browserWSEndpoint: session.wsEndpoint,
   defaultViewport: null,
-  headless: false,
 });
 const [page] = await browser.pages();
 //config commands end here
 
 // ========== Main Script ==========
-const data = await parseColumns('./doctors.csv');
+const data = await parseColumns('./doctors.csv'); //check parseColumns.js for details
+const results = [];
+
+const BATCH_SIZE = 8; // adjust as needed - but this is a good number to start with
+const batches = chunkArray(data, BATCH_SIZE);
 
 for (const [practice, owner] of data) {
   try {
@@ -28,14 +31,17 @@ for (const [practice, owner] of data) {
     await setUserAgent(page);
     await goToGoogle(page);
     await acceptCookies(page);
-    await searchFacebookPage(page, practiceName, owner);
+    await searchFacebookPage(page, practice, owner);
     const links = await scrapeGoogleLinks(page);
     console.log("🔗 Found links:", links);
     const contactInfo = await findEmailFromLinks(page, links);
 
     if (contactInfo) {
       console.log("📧 Email(s):", contactInfo.emails);
+      results.push([owner, contactInfo.emails[0]]);
       // Save to DB / CSV / etc.
+    }else{
+      results.push([owner, "No email found"]);
     }
 
 
@@ -44,6 +50,12 @@ for (const [practice, owner] of data) {
     continue; // move to the next iteration
   }
 }
+
+console.log("\n📋 Final Results:");
+for (const [owner, email] of results) {
+  console.log(`${owner}: ${email}`);
+}
+
 
 await browser.close();
 
@@ -173,4 +185,13 @@ async function findEmailFromLinks(page, links) {
     console.log("❌ No email found in any of the links.");
     return null;
   }
+}
+
+//defining the batch size using the following function
+function chunkArray(array, size) {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
 }
