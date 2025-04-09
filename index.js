@@ -1,8 +1,8 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { config } from "dotenv";
 import { connect } from "puppeteer-core";
-import { setTimeout } from "node:timers/promises";  // Node.js ≥ 15
-
+import { setTimeout } from "node:timers/promises";
+import { parseColumns } from './parseColumns.js';
 
 //config commands start here
 config(); //TODO fix .env and API key issue
@@ -19,15 +19,19 @@ const [page] = await browser.pages();
 //config commands end here
 
 
-
+const data = await parseColumns('./doctors.csv');
 
 const practiceName = "Diehl Dental";
 const owner = "Dr. Kathleen J. Diehl";
+
 await setUserAgent(page);
 await goToGoogle(page);
 await acceptCookies(page);
 await searchFacebookPage(page, practiceName, owner);
 const links = await scrapeGoogleLinks(page);
+
+
+
 
 let emailFound = false;
 for (let i = 0; i < links.length && !emailFound; i++) {
