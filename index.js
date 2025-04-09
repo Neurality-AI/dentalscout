@@ -41,9 +41,9 @@ await Promise.all(
         const contactInfo = await findEmailFromLinks(page, links);
         const email = contactInfo?.emails[0] ?? 'No email found';
         results.push([owner, email]);
-        console.log(`📧 ${owner}: ${email}`);
+        console.log(`${owner}: ${email}`);
       } catch (err) {
-        console.error(`❌ ${owner}:`, err.message);
+        console.error(`${owner}:`, err.message);
         results.push([owner, 'Error']);
       } finally {
         await page.close();
@@ -52,7 +52,7 @@ await Promise.all(
   )
 );
 
-console.log('📋 Final Results:', results);
+console.log('Final Results:', results);
 
 
 //experimental part ends here
@@ -65,7 +65,7 @@ async function setUserAgent(page) {
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
   );
-  console.log("🔧 User agent set to Chrome 119 on Windows 10.");
+  console.log("User agent set to Chrome 119 on Windows 10.");
 }
 
 async function goToGoogle(page) {
@@ -84,9 +84,9 @@ async function acceptCookies(page) {
     });
   
     if (clicked) {
-      console.log("✅ Accepted cookie consent.");
+      console.log("Accepted cookie consent.");
     } else {
-      console.log("ℹ️ No consent screen detected.");
+      console.log("No consent screen detected.");
     }
   }
 
@@ -96,7 +96,7 @@ async function searchFacebookPage(page, businessName, personName) {
   // const query = `site:facebook.com ${businessName} ${personName}`;
   const query = `${businessName} ${personName} facebook`;
   const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-  console.log("🔍 Navigating directly to:", url);
+  console.log("Navigating directly to:", url);
 
   await page.setExtraHTTPHeaders({ "accept-language": "en-US,en;q=0.9" });
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -122,10 +122,10 @@ function getFacebookAboutURL(fbLink) {
   }
 
 async function visitFacebookAbout(page, aboutUrl) {
-  console.log("📘 Navigating to About:", aboutUrl);
+  console.log("Navigating to About:", aboutUrl);
   await page.goto(aboutUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForSelector("body", { visible: true });
-  console.log("🌐 Loaded About Page:", page.url());
+  console.log("Loaded About Page:", page.url());
 }
 
 async function extractContactInfo(page) {
@@ -143,18 +143,18 @@ async function extractContactInfo(page) {
 
   // Optional: still show logs
   if (contactInfo.emails.length === 0 && contactInfo.phones.length === 0) {
-    console.log("🔒 Profile appears to be private or no contact info found.");
+    console.log("Profile appears to be private or no contact info found.");
   } else {
     if (contactInfo.emails.length > 0) {
-      console.log("📧 Email(s):", contactInfo.emails);
+      console.log("Email(s):", contactInfo.emails);
     } else {
-      console.log("📭 No email found.");
+      console.log("No email found.");
     }
 
     if (contactInfo.phones.length > 0) {
-      console.log("📞 Phone(s):", contactInfo.phones);
+      console.log("Phone(s):", contactInfo.phones);
     } else {
-      console.log("📵 No phone found.");
+      console.log("No phone found.");
     }
   }
 
@@ -173,15 +173,15 @@ async function findEmailFromLinks(page, links) {
 
     if (contactInfo.emails.length > 0) {
       emailFound = true;
-      console.log("✅ Email found, stopping search.");
+      console.log("Email found, stopping search.");
       return contactInfo; // return email info early
     } else {
-      console.log(`⏭️ No email in link[${i}], moving to next...`);
+      console.log(`No email in link[${i}], moving to next...`);
     }
   }
 
   if (!emailFound) {
-    console.log("❌ No email found in any of the links.");
+    console.log("No email found in any of the links.");
     return null;
   }
 }
