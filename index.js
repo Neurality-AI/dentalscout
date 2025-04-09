@@ -4,31 +4,32 @@ import { connect } from "puppeteer-core";
 import { setTimeout } from "node:timers/promises";  // Node.js ≥ 15
 
 
+//config commands start here
 config(); //TODO fix .env and API key issue
-
 const client = new Hyperbrowser({
   apiKey: "hb_39dbccf019ab326fe91bbf4f3a67",
 });
-
 const session = await client.sessions.create();
-
 const browser = await connect({
   browserWSEndpoint: session.wsEndpoint,
   defaultViewport: null,
   headless: false,
 });
-
 const [page] = await browser.pages();
+//config commands end here
 
+
+
+
+const practiceName = "Diehl Dental";
+const owner = "Dr. Kathleen J. Diehl";
 await setUserAgent(page);
 await goToGoogle(page);
 await acceptCookies(page);
-await searchFacebookPage(page, "Diehl Dental", "Dr. Kathleen J. Diehl");
-
+await searchFacebookPage(page, practiceName, owner);
 const links = await scrapeGoogleLinks(page);
 
 let emailFound = false;
-
 for (let i = 0; i < links.length && !emailFound; i++) {
   const aboutLink = getFacebookAboutURL(links[i]);
   if (!aboutLink) continue;
@@ -48,11 +49,19 @@ for (let i = 0; i < links.length && !emailFound; i++) {
 if (!emailFound) {
   console.log("❌ No email found in any of the links.");
 }
-
 await browser.close();
 
 
-await browser.close();
+
+
+
+
+
+
+
+
+
+
 
 
 // ========== Helper Functions ==========
@@ -104,8 +113,6 @@ async function searchFacebookPage(page, businessName, personName) {
   await page.mouse.move(100, 100);
 }
 
-
-// Fastest possible “all links” version - this still gets all the links
 async function scrapeGoogleLinks(page) {
     // One DevTools round‑trip, no extra logging inside
     return page.evaluate(() =>
