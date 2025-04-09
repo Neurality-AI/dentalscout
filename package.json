@@ -5,6 +5,7 @@
     "dotenv": "^16.4.7",
     "googleapis": "^148.0.0",
     "node-fetch": "^3.3.2",
+    "p-limit": "^6.2.0",
     "puppeteer": "^24.6.0",
     "puppeteer-cluster": "^0.24.0",
     "puppeteer-extra": "^3.3.6",

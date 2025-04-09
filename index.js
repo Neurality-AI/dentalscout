@@ -3,6 +3,10 @@ import { config } from "dotenv";
 import { connect } from "puppeteer-core";
 import { setTimeout } from "node:timers/promises";
 import { parseColumns } from './parseColumns.js';
+import { Cluster } from 'puppeteer-cluster';
+import pLimit from 'p-limit';
+
+
 
 //config commands start here
 config(); //TODO fix .env and API key issue
@@ -14,68 +18,44 @@ const browser = await connect({
   browserWSEndpoint: session.wsEndpoint,
   defaultViewport: null,
 });
-const [page] = await browser.pages();
-//config commands end here
+const limit = pLimit(5);    // run up to 5 tasks in parallel
+const results = [];//config commands end here
 
 // ========== Main Script ==========
-const data = await parseColumns('./doctors.csv'); //check parseColumns.js for details
-const results = [];
+const data = await parseColumns('./test1.csv'); //check parseColumns.js for details
 
 //experimental part begins here
 
-const BATCH_COUNT = 5; // number of sessions to run in parallel
-const chunks = chunkArray(data, Math.ceil(data.length / BATCH_COUNT)); // split data across sessions
-
-// 👇 Create a helper function to handle each chunk/session
-async function processChunk(chunk, index) {
-  console.log(`🚀 Starting session ${index + 1}`);
-
-  const session = await client.sessions.create();
-  const browser = await connect({
-    browserWSEndpoint: session.wsEndpoint,
-    defaultViewport: null,
-    headless: false,
-  });
-
-  const [page] = await browser.pages();
-
-  for (const [practice, owner] of chunk) {
-    try {
-      console.log(`🔍 [Session ${index + 1}] Processing: ${practice} - ${owner}`);
-      await page.goto('about:blank');
-      await setUserAgent(page);
-      await goToGoogle(page);
-      await acceptCookies(page);
-      await searchFacebookPage(page, practice, owner);
-      const links = await scrapeGoogleLinks(page);
-      console.log("🔗 Found links:", links);
-      const contactInfo = await findEmailFromLinks(page, links);
-
-      if (contactInfo) {
-        console.log("📧 Email(s):", contactInfo.emails);
-        results.push([owner, contactInfo.emails[0]]);
-      } else {
-        results.push([owner, "No email found"]);
+await Promise.all(
+  data.map(([practice, owner]) =>
+    limit(async () => {
+      const page = await browser.newPage();
+      try {
+        console.log(`🔍 ${practice} – ${owner}`);
+        await page.goto('about:blank');
+        await setUserAgent(page);
+        await goToGoogle(page);
+        await acceptCookies(page);
+        await searchFacebookPage(page, practice, owner);
+        const links = await scrapeGoogleLinks(page);
+        const contactInfo = await findEmailFromLinks(page, links);
+        const email = contactInfo?.emails[0] ?? 'No email found';
+        results.push([owner, email]);
+        console.log(`📧 ${owner}: ${email}`);
+      } catch (err) {
+        console.error(`❌ ${owner}:`, err.message);
+        results.push([owner, 'Error']);
+      } finally {
+        await page.close();
       }
+    })
+  )
+);
 
-    } catch (err) {
-      console.error(`❌ [Session ${index + 1}] Error processing ${practice} - ${owner}:`, err.message);
-      results.push([owner, "Error"]);
-      continue;
-    }
-  }
+console.log('📋 Final Results:', results);
 
-  await browser.close();
-  console.log(`✅ [Session ${index + 1}] Finished.`);
-}
 
-// Launch all sessions in parallel
-await Promise.all(chunks.map((chunk, index) => processChunk(chunk, index)));
-
-console.log("\n📋 Final Results:");
-for (const [owner, email] of results) {
-  console.log(`${owner}: ${email}`);
-}
+//experimental part ends here
 
 
 // ========== Helper Functions ==========
