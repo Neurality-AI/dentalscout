@@ -18,41 +18,59 @@ const browser = await connect({
 const [page] = await browser.pages();
 //config commands end here
 
-
+// ========== Main Script ==========
 const data = await parseColumns('./doctors.csv');
 
 const practiceName = "Diehl Dental";
 const owner = "Dr. Kathleen J. Diehl";
 
-await setUserAgent(page);
-await goToGoogle(page);
-await acceptCookies(page);
-await searchFacebookPage(page, practiceName, owner);
-const links = await scrapeGoogleLinks(page);
 
+for (const [practice, owner] of data) {
+  try {
+    console.log(`🔍 Processing: ${practice} - ${owner}`);
+    await page.goto('about:blank');
+    await setUserAgent(page);
+    await goToGoogle(page);
+    await acceptCookies(page);
+    await searchFacebookPage(page, practiceName, owner);
+    const links = await scrapeGoogleLinks(page);
+    console.log("🔗 Found links:", links);
 
-
-
-let emailFound = false;
-for (let i = 0; i < links.length && !emailFound; i++) {
-  const aboutLink = getFacebookAboutURL(links[i]);
-  if (!aboutLink) continue;
-
-  await visitFacebookAbout(page, aboutLink);
-
-  const contactInfo = await extractContactInfo(page);
-
-  if (contactInfo.emails.length > 0) {
-    emailFound = true;
-    console.log("✅ Email found, stopping search.");
-  } else {
-    console.log(`⏭️ No email in link[${i}], moving to next...`);
+  } catch (err) {
+    console.error(`❌ Error processing ${practice} - ${owner}:`, err.message);
+    continue; // move to the next iteration
   }
 }
 
-if (!emailFound) {
-  console.log("❌ No email found in any of the links.");
-}
+
+
+
+
+
+
+
+
+// let emailFound = false;
+// for (let i = 0; i < links.length && !emailFound; i++) {
+//   const aboutLink = getFacebookAboutURL(links[i]);
+//   if (!aboutLink) continue;
+
+//   await visitFacebookAbout(page, aboutLink);
+
+//   const contactInfo = await extractContactInfo(page);
+
+//   if (contactInfo.emails.length > 0) {
+//     emailFound = true;
+//     console.log("✅ Email found, stopping search.");
+//   } else {
+//     console.log(`⏭️ No email in link[${i}], moving to next...`);
+//   }
+// }
+
+// if (!emailFound) {
+//   console.log("❌ No email found in any of the links.");
+// }
+
 await browser.close();
 
 
@@ -103,7 +121,8 @@ async function acceptCookies(page) {
 
 async function searchFacebookPage(page, businessName, personName) {
   // 1. Build and go directly to the Google search URL
-  const query = `site:facebook.com ${businessName} ${personName}`;
+  // const query = `site:facebook.com ${businessName} ${personName}`;
+  const query = `${businessName} ${personName} facebook`;
   const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
   console.log("🔍 Navigating directly to:", url);
 
