@@ -21,43 +21,62 @@ const [page] = await browser.pages();
 const data = await parseColumns('./doctors.csv'); //check parseColumns.js for details
 const results = [];
 
-const BATCH_SIZE = 8; // adjust as needed - but this is a good number to start with
-const batches = chunkArray(data, BATCH_SIZE);
+//experimental part begins here
 
-for (const [practice, owner] of data) {
-  try {
-    console.log(`🔍 Processing: ${practice} - ${owner}`);
-    await page.goto('about:blank');
-    await setUserAgent(page);
-    await goToGoogle(page);
-    await acceptCookies(page);
-    await searchFacebookPage(page, practice, owner);
-    const links = await scrapeGoogleLinks(page);
-    console.log("🔗 Found links:", links);
-    const contactInfo = await findEmailFromLinks(page, links);
+const BATCH_COUNT = 5; // number of sessions to run in parallel
+const chunks = chunkArray(data, Math.ceil(data.length / BATCH_COUNT)); // split data across sessions
 
-    if (contactInfo) {
-      console.log("📧 Email(s):", contactInfo.emails);
-      results.push([owner, contactInfo.emails[0]]);
-      // Save to DB / CSV / etc.
-    }else{
-      results.push([owner, "No email found"]);
+// 👇 Create a helper function to handle each chunk/session
+async function processChunk(chunk, index) {
+  console.log(`🚀 Starting session ${index + 1}`);
+
+  const session = await client.sessions.create();
+  const browser = await connect({
+    browserWSEndpoint: session.wsEndpoint,
+    defaultViewport: null,
+    headless: false,
+  });
+
+  const [page] = await browser.pages();
+
+  for (const [practice, owner] of chunk) {
+    try {
+      console.log(`🔍 [Session ${index + 1}] Processing: ${practice} - ${owner}`);
+      await page.goto('about:blank');
+      await setUserAgent(page);
+      await goToGoogle(page);
+      await acceptCookies(page);
+      await searchFacebookPage(page, practice, owner);
+      const links = await scrapeGoogleLinks(page);
+      console.log("🔗 Found links:", links);
+      const contactInfo = await findEmailFromLinks(page, links);
+
+      if (contactInfo) {
+        console.log("📧 Email(s):", contactInfo.emails);
+        results.push([owner, contactInfo.emails[0]]);
+      } else {
+        results.push([owner, "No email found"]);
+      }
+
+    } catch (err) {
+      console.error(`❌ [Session ${index + 1}] Error processing ${practice} - ${owner}:`, err.message);
+      results.push([owner, "Error"]);
+      continue;
     }
-
-
-  } catch (err) {
-    console.error(`❌ Error processing ${practice} - ${owner}:`, err.message);
-    continue; // move to the next iteration
   }
+
+  await browser.close();
+  console.log(`✅ [Session ${index + 1}] Finished.`);
 }
+
+// Launch all sessions in parallel
+await Promise.all(chunks.map((chunk, index) => processChunk(chunk, index)));
 
 console.log("\n📋 Final Results:");
 for (const [owner, email] of results) {
   console.log(`${owner}: ${email}`);
 }
 
-
-await browser.close();
 
 // ========== Helper Functions ==========
 
