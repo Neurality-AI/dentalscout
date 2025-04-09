@@ -21,10 +21,6 @@ const [page] = await browser.pages();
 // ========== Main Script ==========
 const data = await parseColumns('./doctors.csv');
 
-const practiceName = "Diehl Dental";
-const owner = "Dr. Kathleen J. Diehl";
-
-
 for (const [practice, owner] of data) {
   try {
     console.log(`🔍 Processing: ${practice} - ${owner}`);
@@ -35,6 +31,13 @@ for (const [practice, owner] of data) {
     await searchFacebookPage(page, practiceName, owner);
     const links = await scrapeGoogleLinks(page);
     console.log("🔗 Found links:", links);
+    const contactInfo = await findEmailFromLinks(page, links);
+
+    if (contactInfo) {
+      console.log("📧 Email(s):", contactInfo.emails);
+      // Save to DB / CSV / etc.
+    }
+
 
   } catch (err) {
     console.error(`❌ Error processing ${practice} - ${owner}:`, err.message);
@@ -42,49 +45,7 @@ for (const [practice, owner] of data) {
   }
 }
 
-
-
-
-
-
-
-
-
-// let emailFound = false;
-// for (let i = 0; i < links.length && !emailFound; i++) {
-//   const aboutLink = getFacebookAboutURL(links[i]);
-//   if (!aboutLink) continue;
-
-//   await visitFacebookAbout(page, aboutLink);
-
-//   const contactInfo = await extractContactInfo(page);
-
-//   if (contactInfo.emails.length > 0) {
-//     emailFound = true;
-//     console.log("✅ Email found, stopping search.");
-//   } else {
-//     console.log(`⏭️ No email in link[${i}], moving to next...`);
-//   }
-// }
-
-// if (!emailFound) {
-//   console.log("❌ No email found in any of the links.");
-// }
-
 await browser.close();
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // ========== Helper Functions ==========
 
@@ -187,4 +148,29 @@ async function extractContactInfo(page) {
   }
 
   return contactInfo;
+}
+
+async function findEmailFromLinks(page, links) {
+  let emailFound = false;
+
+  for (let i = 0; i < links.length && !emailFound; i++) {
+    const aboutLink = getFacebookAboutURL(links[i]);
+    if (!aboutLink) continue;
+
+    await visitFacebookAbout(page, aboutLink);
+    const contactInfo = await extractContactInfo(page);
+
+    if (contactInfo.emails.length > 0) {
+      emailFound = true;
+      console.log("✅ Email found, stopping search.");
+      return contactInfo; // return email info early
+    } else {
+      console.log(`⏭️ No email in link[${i}], moving to next...`);
+    }
+  }
+
+  if (!emailFound) {
+    console.log("❌ No email found in any of the links.");
+    return null;
+  }
 }
