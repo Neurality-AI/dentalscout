@@ -1,6 +1,8 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
 import { config } from "dotenv";
 import { connect } from "puppeteer-core";
+import { setTimeout } from "node:timers/promises";  // Node.js ≥ 15
+
 
 config(); //TODO fix .env and API key issue
 
@@ -85,7 +87,6 @@ async function acceptCookies(page) {
     }
   }
 
-import { setTimeout } from "node:timers/promises";  // Node.js ≥ 15
 
 async function searchFacebookPage(page, businessName, personName) {
   // 1. Build and go directly to the Google search URL
@@ -111,16 +112,6 @@ async function scrapeGoogleLinks(page) {
       Array.from(document.querySelectorAll("a h3"), h => h.parentElement.href)
     );  // :contentReference[oaicite:0]{index=0}
   }
-
-//even faster version but this time we only get the first link - this code is experimental and may not work all the time
-// Even faster: grab just the first link
-// async function getFirstGoogleLink(page) {
-//     return page.evaluate(() => {
-//       const h = document.querySelector("a h3");
-//       return h ? h.parentElement.href : null;
-//     });  // :contentReference[oaicite:1]{index=1}
-//   }
-  
 
 function getFacebookAboutURL(fbLink) {
     // Inline regex literal: (origin/)(username or ID)
