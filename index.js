@@ -21,18 +21,34 @@ const [page] = await browser.pages();
 await setUserAgent(page);
 await goToGoogle(page);
 await acceptCookies(page);
-await searchFacebookPage(page, "Lodi Dental Care", "Susana Ung");
+await searchFacebookPage(page, "Diehl Dental", "Dr. Kathleen J. Diehl");
 
 const links = await scrapeGoogleLinks(page);
-if (links.length > 0) {
-  const aboutLink = getFacebookAboutURL(links[0]);
-  if (aboutLink) {
-    await visitFacebookAbout(page, aboutLink);
-    await extractContactInfo(page);
+
+let emailFound = false;
+
+for (let i = 0; i < links.length && !emailFound; i++) {
+  const aboutLink = getFacebookAboutURL(links[i]);
+  if (!aboutLink) continue;
+
+  await visitFacebookAbout(page, aboutLink);
+
+  const contactInfo = await extractContactInfo(page);
+
+  if (contactInfo.emails.length > 0) {
+    emailFound = true;
+    console.log("✅ Email found, stopping search.");
+  } else {
+    console.log(`⏭️ No email in link[${i}], moving to next...`);
   }
-} else {
-  console.log("No links found.");
 }
+
+if (!emailFound) {
+  console.log("❌ No email found in any of the links.");
+}
+
+await browser.close();
+
 
 await browser.close();
 
@@ -120,33 +136,34 @@ async function visitFacebookAbout(page, aboutUrl) {
 }
 
 async function extractContactInfo(page) {
-    const contactInfo = await page.evaluate(() => {
-      const content = document.body.innerText;
-  
-      // Optimized regular expressions for email and phone number extraction
-      const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
-      const phoneRegex = /(?:\+?\d{1,3}[ -]?)?(?:\(?\d{3}\)?[ -]?)?\d{3}[ -]?\d{4}/g;
-  
-      const emails = content.match(emailRegex) || [];
-      const phones = content.match(phoneRegex) || [];
-  
-      return { emails, phones };
-    });
-  
-    if (contactInfo.emails.length === 0 && contactInfo.phones.length === 0) {
-      console.log("🔒 Profile appears to be private or no contact info found.");
+  const contactInfo = await page.evaluate(() => {
+    const content = document.body.innerText;
+
+    const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
+    const phoneRegex = /(?:\+?\d{1,3}[ -]?)?(?:\(?\d{3}\)?[ -]?)?\d{3}[ -]?\d{4}/g;
+
+    const emails = content.match(emailRegex) || [];
+    const phones = content.match(phoneRegex) || [];
+
+    return { emails, phones };
+  });
+
+  // Optional: still show logs
+  if (contactInfo.emails.length === 0 && contactInfo.phones.length === 0) {
+    console.log("🔒 Profile appears to be private or no contact info found.");
+  } else {
+    if (contactInfo.emails.length > 0) {
+      console.log("📧 Email(s):", contactInfo.emails);
     } else {
-      if (contactInfo.emails.length > 0) {
-        console.log("📧 Email(s):", contactInfo.emails);
-      } else {
-        console.log("📭 No email found.");
-      }
-  
-      if (contactInfo.phones.length > 0) {
-        console.log("📞 Phone(s):", contactInfo.phones);
-      } else {
-        console.log("📵 No phone found.");
-      }
+      console.log("📭 No email found.");
+    }
+
+    if (contactInfo.phones.length > 0) {
+      console.log("📞 Phone(s):", contactInfo.phones);
+    } else {
+      console.log("📵 No phone found.");
     }
   }
-  
+
+  return contactInfo;
+}
