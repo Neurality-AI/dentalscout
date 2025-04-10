@@ -22,14 +22,14 @@ const sheetName = workbook.SheetNames[0];
 const worksheet = workbook.Sheets[sheetName];
 
 const data = await parseColumns(filePath); // Includes rowIndex, colA, colC
-console.log(`🧠 Processing ${data.length} new rows...`);
+console.log(`Processing ${data.length} new rows...`);
 
 await Promise.all(
   data.map(({ rowIndex, colA: practice, colC: owner }) =>
     limit(async () => {
       const page = await browser.newPage();
       try {
-        console.log(`🔍 ${practice} – ${owner}`);
+        console.log(`${practice} – ${owner}`);
         await page.goto('about:blank');
         await setUserAgent(page);
         await goToGoogle(page);
@@ -49,9 +49,9 @@ await Promise.all(
         const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
         fs.writeFileSync(filePath, updatedBuffer);
 
-        console.log(`✅ Row ${rowIndex}: ${email}, ${phone}`);
+        console.log(`Row ${rowIndex}: ${email}, ${phone}`);
       } catch (err) {
-        console.error(`❌ ${owner}:`, err.message);
+        console.error(`${owner}:`, err.message);
 
         worksheet[`D${rowIndex}`] = { t: 's', v: 'Error' };
         worksheet[`E${rowIndex}`] = { t: 's', v: 'Error' };
@@ -65,7 +65,7 @@ await Promise.all(
   )
 );
 
-console.log('🎉 All rows processed.');
+console.log('All rows processed.');
 
 
 
