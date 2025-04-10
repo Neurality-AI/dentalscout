@@ -1,27 +1,24 @@
-import fs from 'fs';
-import csv from 'csv-parser';
+import readXlsxFile from 'read-excel-file/node';
 
 export async function parseColumns(filePath) {
-  return new Promise((resolve, reject) => {
+  try {
+    const rows = await readXlsxFile(filePath);
+
     const result = [];
-    let isFirstRow = true;
 
-    fs.createReadStream(filePath)
-      .pipe(csv())
-      .on('data', (row) => {
-        if (isFirstRow) {
-          isFirstRow = false; // Skip header row
-          return;
-        }
+    // Skip the first row (headers)
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
 
-        const values = Object.values(row);
-        if (values.length >= 3) {
-          const colA = values[0]; // Column A
-          const colC = values[2]; // Column C
-          result.push([colA, colC]);
-        }
-      })
-      .on('end', () => resolve(result))
-      .on('error', (err) => reject(err));
-  });
+      if (row.length >= 3) {
+        const colA = row[0]; // Column A
+        const colC = row[2]; // Column C
+        result.push([colA, colC]);
+      }
+    }
+
+    return result;
+  } catch (error) {
+    throw new Error(`Failed to parse Excel file: ${error.message}`);
+  }
 }

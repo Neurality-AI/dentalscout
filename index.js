@@ -10,19 +10,14 @@ import pLimit from 'p-limit';
 
 //config commands start here
 config(); //TODO fix .env and API key issue
-const client = new Hyperbrowser({
-  apiKey: "hb_39dbccf019ab326fe91bbf4f3a67",
-});
+const client = new Hyperbrowser({apiKey: "hb_39dbccf019ab326fe91bbf4f3a67",});
 const session = await client.sessions.create();
-const browser = await connect({
-  browserWSEndpoint: session.wsEndpoint,
-  defaultViewport: null,
-});
+const browser = await connect({browserWSEndpoint: session.wsEndpoint,defaultViewport: null,});
 const limit = pLimit(5);    // run up to 5 tasks in parallel
 const results = [];//config commands end here
 
 // ========== Main Script ==========
-const data = await parseColumns('./test1.csv'); //check parseColumns.js for details
+const data = await parseColumns('./test1.xlsx'); //check parseColumns.js for details
 
 //experimental part begins here
 
@@ -35,19 +30,19 @@ await Promise.all(
         await page.goto('about:blank');
         await setUserAgent(page);
         await goToGoogle(page);
-        await acceptCookies(page);
+        await acceptCookies(page);  
         await searchFacebookPage(page, practice, owner);
         const links = await scrapeGoogleLinks(page);
-        const contactInfo = await findEmailFromLinks(page, links); // CHANGED: now returns [emails, phones]
+        const contactInfo = await findEmailFromLinks(page, links);
 
-        const email = contactInfo?.[0]?.[0] ?? 'No email found'; // CHANGED: access emails from 2D array
-        const phone = contactInfo?.[1]?.[0] ?? 'No phone found'; // NEW: access phones from 2D array
+        const email = contactInfo?.[0]?.[0] ?? 'No email found';
+        const phone = contactInfo?.[1]?.[0] ?? 'No phone found';
 
-        results.push([owner, email, phone]); // CHANGED: include phone in results
-        console.log(`${owner}: ${email}, ${phone}`); // CHANGED: log both
+        results.push([owner, email, phone]);
+        console.log(`${owner}: ${email}, ${phone}`); 
       } catch (err) {
         console.error(`${owner}:`, err.message);
-        results.push([owner, 'Error', 'Error']); // CHANGED: handle phone error too
+        results.push([owner, 'Error', 'Error']); 
       } finally {
         await page.close();
       }

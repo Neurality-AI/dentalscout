@@ -9,7 +9,9 @@
     "puppeteer": "^24.6.0",
     "puppeteer-cluster": "^0.24.0",
     "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "read-excel-file": "^5.8.7",
+    "xlsx": "^0.18.5"
   },
   "type": "module"
 }
