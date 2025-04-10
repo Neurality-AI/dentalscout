@@ -38,19 +38,23 @@ await Promise.all(
         await acceptCookies(page);
         await searchFacebookPage(page, practice, owner);
         const links = await scrapeGoogleLinks(page);
-        const contactInfo = await findEmailFromLinks(page, links);
-        const email = contactInfo?.emails[0] ?? 'No email found';
-        results.push([owner, email]);
-        console.log(`${owner}: ${email}`);
+        const contactInfo = await findEmailFromLinks(page, links); // CHANGED: now returns [emails, phones]
+
+        const email = contactInfo?.[0]?.[0] ?? 'No email found'; // CHANGED: access emails from 2D array
+        const phone = contactInfo?.[1]?.[0] ?? 'No phone found'; // NEW: access phones from 2D array
+
+        results.push([owner, email, phone]); // CHANGED: include phone in results
+        console.log(`${owner}: ${email}, ${phone}`); // CHANGED: log both
       } catch (err) {
         console.error(`${owner}:`, err.message);
-        results.push([owner, 'Error']);
+        results.push([owner, 'Error', 'Error']); // CHANGED: handle phone error too
       } finally {
         await page.close();
       }
     })
   )
 );
+
 
 console.log('Final Results:', results);
 
@@ -163,28 +167,41 @@ async function extractContactInfo(page) {
 
 async function findEmailFromLinks(page, links) {
   let emailFound = false;
+  let phoneFound = false;
+  let result = [[], []]; // [emails, phones]
 
-  for (let i = 0; i < links.length && !emailFound; i++) {
+  for (let i = 0; i < links.length && (!emailFound || !phoneFound); i++) {
     const aboutLink = getFacebookAboutURL(links[i]);
     if (!aboutLink) continue;
 
     await visitFacebookAbout(page, aboutLink);
     const contactInfo = await extractContactInfo(page);
 
-    if (contactInfo.emails.length > 0) {
+    if (contactInfo.emails.length > 0 && !emailFound) {
       emailFound = true;
-      console.log("Email found, stopping search.");
-      return contactInfo; // return email info early
-    } else {
-      console.log(`No email in link[${i}], moving to next...`);
+      result[0] = contactInfo.emails;
+      console.log("Email(s) found.");
+    } else if (!emailFound) {
+      console.log(`No email in link[${i}], checking next...`);
+    }
+
+    if (contactInfo.phones.length > 0 && !phoneFound) {
+      phoneFound = true;
+      result[1] = contactInfo.phones;
+      console.log("Phone number(s) found.");
+    } else if (!phoneFound) {
+      console.log(`No phone in link[${i}], checking next...`);
     }
   }
 
-  if (!emailFound) {
-    console.log("No email found in any of the links.");
+  if (!emailFound && !phoneFound) {
+    console.log("No email or phone found in any of the links.");
     return null;
   }
+
+  return result;
 }
+
 
 //defining the batch size using the following function
 function chunkArray(array, size) {
