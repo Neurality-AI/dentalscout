@@ -5,24 +5,27 @@ import { setTimeout } from "node:timers/promises";
 import { parseColumns } from './parseColumns.js';
 import { Cluster } from 'puppeteer-cluster';
 import pLimit from 'p-limit';
+import * as XLSX from 'xlsx/xlsx.mjs';
+import * as fs from 'fs';
 
+config();
 
-
-//config commands start here
-config(); //TODO fix .env and API key issue
-const client = new Hyperbrowser({apiKey: "hb_39dbccf019ab326fe91bbf4f3a67",});
+const client = new Hyperbrowser({ apiKey: "hb_39dbccf019ab326fe91bbf4f3a67" });
 const session = await client.sessions.create();
-const browser = await connect({browserWSEndpoint: session.wsEndpoint,defaultViewport: null,});
-const limit = pLimit(5);    // run up to 5 tasks in parallel
-const results = [];//config commands end here
+const browser = await connect({ browserWSEndpoint: session.wsEndpoint, defaultViewport: null });
+const limit = pLimit(5);
 
-// ========== Main Script ==========
-const data = await parseColumns('./test1.xlsx'); //check parseColumns.js for details
+const filePath = './test1.xlsx';
+const fileBuffer = fs.readFileSync(filePath);
+const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+const sheetName = workbook.SheetNames[0];
+const worksheet = workbook.Sheets[sheetName];
 
-//experimental part begins here
+const data = await parseColumns(filePath); // Includes rowIndex, colA, colC
+console.log(`🧠 Processing ${data.length} new rows...`);
 
 await Promise.all(
-  data.map(([practice, owner]) =>
+  data.map(({ rowIndex, colA: practice, colC: owner }) =>
     limit(async () => {
       const page = await browser.newPage();
       try {
@@ -30,7 +33,7 @@ await Promise.all(
         await page.goto('about:blank');
         await setUserAgent(page);
         await goToGoogle(page);
-        await acceptCookies(page);  
+        await acceptCookies(page);
         await searchFacebookPage(page, practice, owner);
         const links = await scrapeGoogleLinks(page);
         const contactInfo = await findEmailFromLinks(page, links);
@@ -38,11 +41,23 @@ await Promise.all(
         const email = contactInfo?.[0]?.[0] ?? 'No email found';
         const phone = contactInfo?.[1]?.[0] ?? 'No phone found';
 
-        results.push([owner, email, phone]);
-        console.log(`${owner}: ${email}, ${phone}`); 
+        const emailCell = `D${rowIndex}`;
+        const phoneCell = `E${rowIndex}`;
+        worksheet[emailCell] = { t: 's', v: email };
+        worksheet[phoneCell] = { t: 's', v: phone };
+
+        const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        fs.writeFileSync(filePath, updatedBuffer);
+
+        console.log(`✅ Row ${rowIndex}: ${email}, ${phone}`);
       } catch (err) {
-        console.error(`${owner}:`, err.message);
-        results.push([owner, 'Error', 'Error']); 
+        console.error(`❌ ${owner}:`, err.message);
+
+        worksheet[`D${rowIndex}`] = { t: 's', v: 'Error' };
+        worksheet[`E${rowIndex}`] = { t: 's', v: 'Error' };
+
+        const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        fs.writeFileSync(filePath, updatedBuffer);
       } finally {
         await page.close();
       }
@@ -50,8 +65,10 @@ await Promise.all(
   )
 );
 
+console.log('🎉 All rows processed.');
 
-console.log('Final Results:', results);
+
+
 
 
 //experimental part ends here
