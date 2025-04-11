@@ -24,46 +24,123 @@ const worksheet = workbook.Sheets[sheetName];
 const data = await parseColumns(filePath); // Includes rowIndex, colA, colC
 console.log(`Processing ${data.length} new rows...`);
 
-await Promise.all(
-  data.map(({ rowIndex, colA: practice, colC: owner }) =>
-    limit(async () => {
-      const page = await browser.newPage();
-      try {
-        console.log(`${practice} – ${owner}`);
-        await page.goto('about:blank');
-        await setUserAgent(page);
-        await goToGoogle(page);
-        await acceptCookies(page);
-        await searchFacebookPage(page, practice, owner);
-        const links = await scrapeGoogleLinks(page);
-        const contactInfo = await findEmailFromLinks(page, links);
+// await Promise.all(
+//   data.map(({ rowIndex, colA: practice, colC: owner }) =>
+//     limit(async () => {
+//       const page = await browser.newPage();
+//       try {
+//         console.log(`${practice} – ${owner}`);
+//         await page.goto('about:blank');
+//         await setUserAgent(page);
+//         await goToGoogle(page);
+//         await acceptCookies(page);
+//         await searchFacebookPage(page, practice, owner);
+//         const links = await scrapeGoogleLinks(page);
+//         const contactInfo = await findEmailFromLinks(page, links);
 
-        const email = contactInfo?.[0]?.[0] ?? 'No email found';
-        const phone = contactInfo?.[1]?.[0] ?? 'No phone found';
+//         const email = contactInfo?.[0]?.[0] ?? 'No email found';
+//         const phone = contactInfo?.[1]?.[0] ?? 'No phone found';
 
-        const emailCell = `D${rowIndex}`;
-        const phoneCell = `E${rowIndex}`;
-        worksheet[emailCell] = { t: 's', v: email };
-        worksheet[phoneCell] = { t: 's', v: phone };
+//         const emailCell = `D${rowIndex}`;
+//         const phoneCell = `E${rowIndex}`;
+//         worksheet[emailCell] = { t: 's', v: email };
+//         worksheet[phoneCell] = { t: 's', v: phone };
 
-        const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-        fs.writeFileSync(filePath, updatedBuffer);
+//         const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+//         fs.writeFileSync(filePath, updatedBuffer);
 
-        console.log(`Row ${rowIndex}: ${email}, ${phone}`);
-      } catch (err) {
-        console.error(`${owner}:`, err.message);
+//         console.log(`Row ${rowIndex}: ${email}, ${phone}`);
+//       } catch (err) {
+//         console.error(`${owner}:`, err.message);
 
-        worksheet[`D${rowIndex}`] = { t: 's', v: 'Error' };
-        worksheet[`E${rowIndex}`] = { t: 's', v: 'Error' };
+//         worksheet[`D${rowIndex}`] = { t: 's', v: 'Error' };
+//         worksheet[`E${rowIndex}`] = { t: 's', v: 'Error' };
 
-        const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-        fs.writeFileSync(filePath, updatedBuffer);
-      } finally {
-        await page.close();
-      }
-    })
-  )
-);
+//         const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+//         fs.writeFileSync(filePath, updatedBuffer);
+//       } finally {
+//         await page.close();
+//       }
+//     })
+//   )
+// );
+
+// Variable to track the number of processed rows
+let processedCount = 0;
+
+for (let i = 0; i < data.length; i++) {
+  // Exit if 24 rows have been processed
+  if (processedCount >= 24) break;
+
+  // Get the current row's data
+  const { rowIndex, colA: practice, colC: owner } = data[i];
+
+  // Open a new page for each row (using the same browser session)
+  const page = await browser.newPage();
+  try {
+    // Log the current practice and owner
+    console.log(`${practice} – ${owner}`);
+    
+    // Navigate to a blank page to start the scraping process
+    await page.goto('about:blank');
+
+    // Set the user agent for the page (important for web scraping to avoid blocking)
+    await setUserAgent(page);
+
+    // Visit Google search
+    await goToGoogle(page);
+
+    // Accept cookies on the website if prompted
+    await acceptCookies(page);
+
+    // Perform a search on Facebook for the given practice and owner
+    await searchFacebookPage(page, practice, owner);
+
+    // Scrape the Google links from the search results
+    const links = await scrapeGoogleLinks(page);
+
+    // Extract the contact information (email and phone) from the scraped links
+    const contactInfo = await findEmailFromLinks(page, links);
+
+    // Use the extracted email and phone, or default to 'No email found' and 'No phone found' if not found
+    const email = contactInfo?.[0]?.[0] ?? 'No email found';
+    const phone = contactInfo?.[1]?.[0] ?? 'No phone found';
+
+    // Define the cells to update in the Excel sheet (column D for email and column E for phone)
+    const emailCell = `D${rowIndex}`;
+    const phoneCell = `E${rowIndex}`;
+
+    // Update the Excel worksheet with the found email and phone
+    worksheet[emailCell] = { t: 's', v: email };
+    worksheet[phoneCell] = { t: 's', v: phone };
+
+    // Write the updated workbook to a buffer and save it to the file
+    const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+    fs.writeFileSync(filePath, updatedBuffer);
+
+    // Log the updated contact info for the current row
+    console.log(`Row ${rowIndex}: ${email}, ${phone}`);
+
+    // Increment the counter after processing a row
+    processedCount++;
+  } catch (err) {
+    // If an error occurs, log it and update the Excel sheet with 'Error' for email and phone
+    console.error(`${owner}:`, err.message);
+
+    worksheet[`D${rowIndex}`] = { t: 's', v: 'Error' };
+    worksheet[`E${rowIndex}`] = { t: 's', v: 'Error' };
+
+    // Write the updated workbook to a buffer and save it to the file in case of error
+    const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+    fs.writeFileSync(filePath, updatedBuffer);
+  } finally {
+    // Close the browser page after processing the row
+    await page.close();
+  }
+}
+
+console.log("Processing finished or 24 rows processed.");
+
 
 console.log('All rows processed.');
 
@@ -132,10 +209,16 @@ async function scrapeGoogleLinks(page) {
   }
 
 function getFacebookAboutURL(fbLink) {
-    // Inline regex literal: (origin/)(username or ID)
+  // If it's a Facebook link, rewrite to /about
+  if (/^https?:\/\/(www\.)?facebook\.com\//.test(fbLink)) {
     const m = /^(https?:\/\/[^\/]+\/)([^\/?#]+)/.exec(fbLink);
-    return m ? `${m[1]}${m[2]}/about` : null;
+    return m ? `${m[1]}${m[2]}/about` : fbLink;
   }
+
+  // Otherwise, return the link as is
+  return fbLink;
+}
+
 
 async function visitFacebookAbout(page, aboutUrl) {
   console.log("Navigating to About:", aboutUrl);
@@ -177,42 +260,43 @@ async function extractContactInfo(page) {
   return contactInfo;
 }
 
-async function findEmailFromLinks(page, links) {
-  let emailFound = false;
-  let phoneFound = false;
-  let result = [[], []]; // [emails, phones]
 
-  for (let i = 0; i < links.length && (!emailFound || !phoneFound); i++) {
+async function findEmailFromLinks(page, links) {
+  const emails = [];
+  const phones = [];
+
+  for (let i = 0; i < links.length && (emails.length === 0 || phones.length === 0); i++) {
     const aboutLink = getFacebookAboutURL(links[i]);
     if (!aboutLink) continue;
 
     await visitFacebookAbout(page, aboutLink);
     const contactInfo = await extractContactInfo(page);
 
-    if (contactInfo.emails.length > 0 && !emailFound) {
-      emailFound = true;
-      result[0] = contactInfo.emails;
-      console.log("Email(s) found.");
-    } else if (!emailFound) {
-      console.log(`No email in link[${i}], checking next...`);
+    // If we haven't yet found emails, grab any that appear
+    if (emails.length === 0 && contactInfo.emails.length > 0) {
+      emails.push(...contactInfo.emails);
+      console.log(`Email(s) found on link[${i}]:`, contactInfo.emails);
+    } else if (emails.length === 0) {
+      console.log(`No email on link[${i}], moving on…`);
     }
 
-    if (contactInfo.phones.length > 0 && !phoneFound) {
-      phoneFound = true;
-      result[1] = contactInfo.phones;
-      console.log("Phone number(s) found.");
-    } else if (!phoneFound) {
-      console.log(`No phone in link[${i}], checking next...`);
+    // If we haven't yet found phones, grab any that appear
+    if (phones.length === 0 && contactInfo.phones.length > 0) {
+      phones.push(...contactInfo.phones);
+      console.log(`Phone(s) found on link[${i}]:`, contactInfo.phones);
+    } else if (phones.length === 0) {
+      console.log(`No phone on link[${i}], moving on…`);
     }
   }
 
-  if (!emailFound && !phoneFound) {
+  if (emails.length === 0 && phones.length === 0) {
     console.log("No email or phone found in any of the links.");
     return null;
   }
 
-  return result;
+  return [emails, phones];
 }
+
 
 
 //defining the batch size using the following function
