@@ -7,6 +7,7 @@ import { Cluster } from 'puppeteer-cluster';
 import pLimit from 'p-limit';
 import * as XLSX from 'xlsx/xlsx.mjs';
 import * as fs from 'fs';
+import Fuse from 'fuse.js';
 
 config();
 
@@ -100,7 +101,7 @@ for (let i = 0; i < data.length; i++) {
     const links = await scrapeGoogleLinks(page);
 
     // Extract the contact information (email and phone) from the scraped links
-    const contactInfo = await findEmailFromLinks(page, links);
+    const contactInfo = await findEmailFromLinks(page, links, practice);
 
     // Use the extracted email and phone, or default to 'No email found' and 'No phone found' if not found
     const email = contactInfo?.[0]?.[0] ?? 'No email found';
@@ -261,36 +262,54 @@ async function extractContactInfo(page) {
 }
 
 
-async function findEmailFromLinks(page, links) {
+
+async function findEmailFromLinks(page, links, practice) {
   const emails = [];
   const phones = [];
+
+  // 1. Set up Fuse.js for fuzzy matching against the practice name
+  const fuse = new Fuse([practice], {
+    includeScore: true,
+    threshold: 0.3 // ~70% similarity required :contentReference[oaicite:0]{index=0}
+  });
 
   for (let i = 0; i < links.length && (emails.length === 0 || phones.length === 0); i++) {
     const aboutLink = getFacebookAboutURL(links[i]);
     if (!aboutLink) continue;
 
     await visitFacebookAbout(page, aboutLink);
-    const contactInfo = await extractContactInfo(page);
 
-    // If we haven't yet found emails, grab any that appear
-    if (emails.length === 0 && contactInfo.emails.length > 0) {
-      emails.push(...contactInfo.emails);
-      console.log(`Email(s) found on link[${i}]:`, contactInfo.emails);
-    } else if (emails.length === 0) {
-      console.log(`No email on link[${i}], moving on…`);
+    // 2. Extract the page's displayed name (<h1>) for validation
+    let pageName;
+    try {
+      pageName = await page.$eval('h1', el => el.innerText.trim()); // get <h1> text :contentReference[oaicite:1]{index=1}
+    } catch {
+      pageName = await page.title();
     }
 
-    // If we haven't yet found phones, grab any that appear
+    // 3. Fuzzy‑match the pageName against our target practice
+    const [match] = fuse.search(pageName);
+    if (!match || match.score > 0.3) {
+      console.log(`Skipping "${pageName}"—doesn't match "${practice}"`);
+      continue;
+    }
+    console.log(`Validated page "${pageName}" matches "${practice}"`);
+
+    // 4. Extract contact info only from validated pages
+    const contactInfo = await extractContactInfo(page);
+
+    if (emails.length === 0 && contactInfo.emails.length > 0) {
+      emails.push(...contactInfo.emails);
+      console.log(`📧 Email(s) found on link[${i}]:`, contactInfo.emails);
+    }
     if (phones.length === 0 && contactInfo.phones.length > 0) {
       phones.push(...contactInfo.phones);
       console.log(`Phone(s) found on link[${i}]:`, contactInfo.phones);
-    } else if (phones.length === 0) {
-      console.log(`No phone on link[${i}], moving on…`);
     }
   }
 
   if (emails.length === 0 && phones.length === 0) {
-    console.log("No email or phone found in any of the links.");
+    console.log("No email or phone found in any of the validated links.");
     return null;
   }
 
