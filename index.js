@@ -324,10 +324,16 @@ function isLikelyMatch(practiceName, pageName, ownerName) {
 export async function findEmailFromLinks(page, links, practice, ownerName) {
   const emails = [];
   const phones = [];
+  let fbPagesVisited = 0;
 
   for (let i = 0; i < links.length && (emails.length === 0 || phones.length === 0); i++) {
     const aboutLink = getFacebookAboutURL(links[i]);
     if (!aboutLink) continue;
+
+    if (aboutLink.includes("facebook.com")){
+      fbPagesVisited++; // ✅ Count only if it’s a valid FB link
+
+    }
 
     await visitFacebookAbout(page, aboutLink);
 
@@ -357,13 +363,29 @@ export async function findEmailFromLinks(page, links, practice, ownerName) {
     }
   }
 
-  if (emails.length === 0 && phones.length === 0) {
-    console.log("No email or phone found in any of the validated links.");
-    return null;
+  if (fbPagesVisited === 0) {
+    if (emails.length > 0 && phones.length > 0) {
+      console.log("✅ Email(s) and phone(s) found, but no FB page was visited.");
+      return [emails, phones];
+    }
+    if (emails.length > 0 && phones.length === 0) {
+      console.log("✅ email(s) found, but no FB page was visited.");
+      return [emails, ["NO FB PAGE"]];
+    }
+    if (phones.length > 0) {
+      console.log("✅ Phone(s) found, but no FB page was visited.");
+      return [["NO FB PAGE"], phones];
+    }
+    console.log("❌ No FB page found and no contact info.");
+    return [["NO FB PAGE"], ["NO FB PAGE"]];
   }
+
+  console.log(`✅ Visited ${fbPagesVisited} Facebook pages.`);
+  
 
   return [emails, phones];
 }
+
 
 
 
