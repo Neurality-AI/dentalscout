@@ -101,7 +101,7 @@ for (let i = 0; i < data.length; i++) {
     const links = await scrapeGoogleLinks(page);
 
     // Extract the contact information (email and phone) from the scraped links
-    const contactInfo = await findEmailFromLinks(page, links, practice);
+    const contactInfo = await findEmailFromLinks(page, links, practice, owner);
 
     // Use the extracted email and phone, or default to 'No email found' and 'No phone found' if not found
     const email = contactInfo?.[0]?.[0] ?? 'No email found';
@@ -263,15 +263,54 @@ async function extractContactInfo(page) {
 
 
 
-async function findEmailFromLinks(page, links, practice) {
+
+
+function normalizeName(name) {
+  return name
+    .toLowerCase()
+    .replace(/[,\.]/g, ' ') // replace punctuation with space
+    .replace(/\b(dr|dds|inc|llc|clinic|center|of|the|dental|corp|corporation|ltd|co)\b/g, '')
+    .replace(/\s{2,}/g, ' ') // collapse multiple spaces
+    .replace(/\slodi\b/g, '') // optional city filter
+    .trim();
+}
+
+function isLikelyMatch(practiceName, pageName, ownerName) {
+  const cleanPractice = normalizeName(practiceName);
+  const cleanOwner = normalizeName(ownerName);
+  const cleanPage = normalizeName(pageName);
+
+  const dashRegex = /[-–]/;
+  if (dashRegex.test(practiceName)) {
+    const parts = practiceName.split(dashRegex).map(p => p.trim());
+    if (parts.length > 1) {
+      const doctorPart = normalizeName(parts[1]);
+      if (cleanPage.includes(doctorPart)) {
+        return true;
+      }
+    }
+  }
+
+  // ✅ Substring match
+  if (
+    cleanPage.includes(cleanPractice) || cleanPractice.includes(cleanPage) ||
+    cleanPage.includes(cleanOwner) || cleanOwner.includes(cleanPage)
+  ) return true;
+
+  // ✅ Fuzzy fallback
+  const fuse = new Fuse([cleanPractice, cleanOwner].filter(Boolean), {
+    includeScore: true,
+    threshold: 0.5, // slightly more lenient
+  });
+
+  const match = fuse.search(cleanPage)[0];
+  return match && match.score <= 0.5;
+}
+
+
+export async function findEmailFromLinks(page, links, practice, ownerName) {
   const emails = [];
   const phones = [];
-
-  // 1. Set up Fuse.js for fuzzy matching against the practice name
-  const fuse = new Fuse([practice], {
-    includeScore: true,
-    threshold: 0.3 // ~70% similarity required :contentReference[oaicite:0]{index=0}
-  });
 
   for (let i = 0; i < links.length && (emails.length === 0 || phones.length === 0); i++) {
     const aboutLink = getFacebookAboutURL(links[i]);
@@ -279,23 +318,20 @@ async function findEmailFromLinks(page, links, practice) {
 
     await visitFacebookAbout(page, aboutLink);
 
-    // 2. Extract the page's displayed name (<h1>) for validation
     let pageName;
     try {
-      pageName = await page.$eval('h1', el => el.innerText.trim()); // get <h1> text :contentReference[oaicite:1]{index=1}
+      pageName = await page.$eval('h1', el => el.innerText.trim());
     } catch {
       pageName = await page.title();
     }
 
-    // 3. Fuzzy‑match the pageName against our target practice
-    const [match] = fuse.search(pageName);
-    if (!match || match.score > 0.3) {
-      console.log(`Skipping "${pageName}"—doesn't match "${practice}"`);
+    if (!isLikelyMatch(practice, pageName, ownerName)) {
+      console.log(`⚠️ Skipping "${pageName}"—insufficient match for "${practice}" or "${ownerName}"`);
       continue;
     }
-    console.log(`Validated page "${pageName}" matches "${practice}"`);
 
-    // 4. Extract contact info only from validated pages
+    console.log(`✅ Validated page "${pageName}" matches "${practice}" or "${ownerName}"`);
+
     const contactInfo = await extractContactInfo(page);
 
     if (emails.length === 0 && contactInfo.emails.length > 0) {
@@ -304,7 +340,7 @@ async function findEmailFromLinks(page, links, practice) {
     }
     if (phones.length === 0 && contactInfo.phones.length > 0) {
       phones.push(...contactInfo.phones);
-      console.log(`Phone(s) found on link[${i}]:`, contactInfo.phones);
+      console.log(`📞 Phone(s) found on link[${i}]:`, contactInfo.phones);
     }
   }
 
@@ -315,6 +351,10 @@ async function findEmailFromLinks(page, links, practice) {
 
   return [emails, phones];
 }
+
+
+
+
 
 
 
