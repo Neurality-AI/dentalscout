@@ -223,10 +223,23 @@ function getFacebookAboutURL(fbLink) {
 
 async function visitFacebookAbout(page, aboutUrl) {
   console.log("Navigating to About:", aboutUrl);
-  await page.goto(aboutUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForSelector("body", { visible: true });
-  console.log("Loaded About Page:", page.url());
+
+  try {
+    await page.goto(aboutUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.waitForSelector("body", { visible: true, timeout: 10000 });
+    console.log("✅ Loaded About Page:", page.url());
+  } catch (err) {
+    if (!aboutUrl.includes("facebook.com")) {
+      console.log("⚠️ Not a Facebook page. Skipping error and moving on.");
+      return;
+    }
+
+    console.error(`❌ Error while visiting Facebook page: ${aboutUrl}`);
+    console.error("Error Reason:", err.message);
+    throw new Error(`visitFacebookAbout failed for Facebook URL: ${err.message}`);
+  }
 }
+
 
 async function extractContactInfo(page) {
   const contactInfo = await page.evaluate(() => {
