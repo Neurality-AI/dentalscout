@@ -24,49 +24,6 @@ const worksheet = workbook.Sheets[sheetName];
 
 const data = await parseColumns(filePath); // Includes rowIndex, colA, colC
 console.log(`Processing ${data.length} new rows...`);
-
-// await Promise.all(
-//   data.map(({ rowIndex, colA: practice, colC: owner }) =>
-//     limit(async () => {
-//       const page = await browser.newPage();
-//       try {
-//         console.log(`${practice} – ${owner}`);
-//         await page.goto('about:blank');
-//         await setUserAgent(page);
-//         await goToGoogle(page);
-//         await acceptCookies(page);
-//         await searchFacebookPage(page, practice, owner);
-//         const links = await scrapeGoogleLinks(page);
-//         const contactInfo = await findEmailFromLinks(page, links);
-
-//         const email = contactInfo?.[0]?.[0] ?? 'No email found';
-//         const phone = contactInfo?.[1]?.[0] ?? 'No phone found';
-
-//         const emailCell = `D${rowIndex}`;
-//         const phoneCell = `E${rowIndex}`;
-//         worksheet[emailCell] = { t: 's', v: email };
-//         worksheet[phoneCell] = { t: 's', v: phone };
-
-//         const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-//         fs.writeFileSync(filePath, updatedBuffer);
-
-//         console.log(`Row ${rowIndex}: ${email}, ${phone}`);
-//       } catch (err) {
-//         console.error(`${owner}:`, err.message);
-
-//         worksheet[`D${rowIndex}`] = { t: 's', v: 'Error' };
-//         worksheet[`E${rowIndex}`] = { t: 's', v: 'Error' };
-
-//         const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-//         fs.writeFileSync(filePath, updatedBuffer);
-//       } finally {
-//         await page.close();
-//       }
-//     })
-//   )
-// );
-
-// Variable to track the number of processed rows
 let processedCount = 0;
 
 for (let i = 0; i < data.length; i++) {
