@@ -33,7 +33,7 @@ function extractFacebookUrls(html) {
 }
 
 async function main() {
-  const filePath = "./test2.xlsx";
+  const filePath = "./test1.xlsx";
 
   // 1) Load workbook into a Buffer (Node ESM) :contentReference[oaicite:2]{index=2}
   const buf      = readFileSync(filePath);
