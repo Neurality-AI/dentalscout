@@ -1,45 +1,110 @@
-// hyperbrowserModule.js
 import dotenv from 'dotenv';
+import { google } from 'googleapis';
 import { Hyperbrowser } from "@hyperbrowser/sdk";
-import * as XLSX from "xlsx/xlsx.mjs";
-import { readFileSync, writeFileSync } from "fs";
 
+// Load environment variables
 dotenv.config();
 
 const client = new Hyperbrowser({ apiKey: process.env.HYPERBROWSER_API_KEY });
 
-// Helper: extract emails via regex from raw HTML
-function extractEmailsFromHtml(html) {
-  return html.match(/[\w.-]+@[\w.-]+\.\w+/g) || [];
+if (!process.env.HYPERBROWSER_API_KEY) {
+  console.error("HYPERBROWSER_API_KEY is not set.");
+  throw new Error("Missing HYPERBROWSER_API_KEY.");
 }
 
-// Helper: find facebook URLs in hrefs or onclick handlers
+// List of domains we consider personal email providers
+const personalEmailDomains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com", "protonmail.com", "icloud.com"];
+
+// Function to validate if a string is a valid email
+function isValidEmail(email) {
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email);
+}
+
+// Function to check if the email is personal (based on the domain)
+function isPersonalEmail(email) {
+  return personalEmailDomains.some(domain => email.endsWith("@" + domain));
+}
+
+// Function to extract valid emails from HTML
+function extractEmailsFromHtml(html) {
+  const emails = (html.match(/[\w.-]+@[\w.-]+\.\w+/g) || []).map(email => email.toLowerCase());
+  return emails.filter(isValidEmail); // Return only valid emails
+}
+
+// Function to extract Facebook URLs from HTML
 function extractFacebookUrls(html) {
   const urls = new Set();
-  let m;
+  let match;
 
-  const linkRe = /href=["'](https?:\/\/(?:www\.)?facebook\.com\/[^"']+)["']/g;
-  while ((m = linkRe.exec(html))) urls.add(m[1]);
+  const linkRegex = /href=["'](https?:\/\/(?:www\.)?facebook\.com\/[^"']+)["']/g;
+  while ((match = linkRegex.exec(html))) urls.add(match[1]);
 
-  const onClickRe = /onclick=["'][^"']*(https?:\/\/(?:www\.)?facebook\.com\/[^"']+)[^"']*["']/g;
-  while ((m = onClickRe.exec(html))) urls.add(m[1]);
+  const onClickRegex = /onclick=["'][^"']*(https?:\/\/(?:www\.)?facebook\.com\/[^"']+)[^"']*["']/g;
+  while ((match = onClickRegex.exec(html))) urls.add(match[1]);
 
   return Array.from(urls);
 }
 
-export async function crawlAndWriteToSheet(dataRows, filePath) {
-  const buf = readFileSync(filePath);
-  const wb = XLSX.read(buf, { type: "buffer" });
-  const ws = wb.Sheets[wb.SheetNames[0]];
+// Get Google Sheets client
+function getGoogleSheetsClient() {
+  const base64Key = process.env.GOOGLE_SERVICE_KEY_B64;
+
+  if (!base64Key) {
+    console.error("GOOGLE_SERVICE_KEY_B64 is not set.");
+    throw new Error("Missing Google Service Key.");
+  }
+
+  const jsonString = Buffer.from(base64Key, 'base64').toString('utf8');
+
+  let credentials;
+  try {
+    credentials = JSON.parse(jsonString);
+  } catch (err) {
+    console.error("Failed to parse credentials JSON:", err);
+    throw new Error("Invalid credentials format.");
+  }
+
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+
+  return google.sheets({ version: 'v4', auth });
+}
+
+// Function to update the Google Sheet
+async function updateGoogleSheet(sheets, rowIndex, spreadsheetId, sheetName, value) {
+  const cell = `D${rowIndex}`;
+  try {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${sheetName}!${cell}`,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[value]],
+      },
+    });
+  } catch (err) {
+    console.error(`Failed to write to Google Sheet for Row ${rowIndex}:`, err.message);
+  }
+}
+
+// Main function to crawl and write to Google Sheet
+export async function crawlAndWriteToGoogleSheet(dataRows, spreadsheetId, sheetName) {
+  console.log("🚀 Starting crawlAndWriteToGoogleSheet...");
+  const sheets = getGoogleSheetsClient();
 
   for (const row of dataRows) {
-    const rowIndex = row[0];
-    const rawUrl = row[2]; // Column B (index 2)
+    console.log(`🔍 Processing row: ${JSON.stringify(row)}`);
+    const rowIndex = row.rowNum;
+    const rawUrl = row.colB;
 
+    console.log(`🌐 Row ${rowIndex}: Raw URL: ${rawUrl}`);
     if (!rawUrl) continue;
+
     const url = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
-    const emailCell = `D${rowIndex}`;
-    const noteCell = `F${rowIndex}`;
+    console.log(`🌐 Row ${rowIndex}: Crawling URL: ${url}`);
 
     let crawlResult;
     try {
@@ -54,7 +119,8 @@ export async function crawlAndWriteToSheet(dataRows, filePath) {
         },
       });
     } catch (err) {
-      console.error(`Row ${rowIndex}: Crawl failed for ${url}:`, err.message);
+      console.error(`❌ Row ${rowIndex}: Crawl failed for ${url}:`, err.message);
+      await updateGoogleSheet(sheets, rowIndex, spreadsheetId, sheetName, "Error");
       continue;
     }
 
@@ -65,7 +131,7 @@ export async function crawlAndWriteToSheet(dataRows, filePath) {
       if (page.status !== "completed") continue;
       const html = page.html || "";
       emails.push(...extractEmailsFromHtml(html));
-      extractFacebookUrls(html).forEach(u => fbUrls.add(u));
+      extractFacebookUrls(html).forEach(url => fbUrls.add(url));
     }
 
     for (const fbUrl of fbUrls) {
@@ -74,29 +140,40 @@ export async function crawlAndWriteToSheet(dataRows, filePath) {
           url: fbUrl,
           maxPages: 1,
           followLinks: false,
-          scrapeOptions: { formats: ["html"], onlyMainContent: false, timeout: 30000 },
+          scrapeOptions: {
+            formats: ["html"],
+            onlyMainContent: false,
+            timeout: 30000,
+          },
         });
+
         for (const page of fbCrawl.data) {
-          if (page.status !== "completed") continue;
-          emails.push(...extractEmailsFromHtml(page.html || ""));
+          if (page.status === "completed") {
+            emails.push(...extractEmailsFromHtml(page.html || ""));
+          }
         }
       } catch {
         // Ignore FB crawl errors
       }
     }
 
-    emails = Array.from(new Set(emails));
-    console.log(`Row ${rowIndex}, URL: ${url} ➜ Found emails:`, emails);
+    emails = Array.from(new Set(emails)); // Deduplicate
 
-    if (emails.length > 0) {
-      const joined = emails.join(", ");
-      ws[emailCell] = { t: "s", v: joined };
-      ws[noteCell] = { t: "s", v: "Found from URL" };
+    // Prioritize personal emails, if available
+    let finalEmail = null;
+    const personalEmails = emails.filter(isPersonalEmail);
+
+    if (personalEmails.length > 0) {
+      finalEmail = personalEmails[0]; // Select the first personal email
+    } else if (emails.length > 0) {
+      finalEmail = emails[0]; // Otherwise, select the first valid email (company email)
     }
+
+    const finalValue = finalEmail || "No email found";
+    console.log(`📧 Row ${rowIndex}, URL: ${url} ➜ Final Email: ${finalValue}`);
+
+    await updateGoogleSheet(sheets, rowIndex, spreadsheetId, sheetName, finalValue);
   }
 
-  const outBuf = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
-  writeFileSync(filePath, outBuf);
-
-  console.log("✅ Crawling complete. Updates saved to", filePath);
+  console.log("✅ All rows processed and emails written to Google Sheet.");
 }

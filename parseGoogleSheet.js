@@ -1,17 +1,25 @@
+// parseGoogleSheet.js
 import { google } from "googleapis";
-import { config } from "dotenv";
-import fs from "fs";
+import dotenv from "dotenv";
+import { crawlAndWriteToGoogleSheet } from "./errorIndex.js"; // Adjust path if needed
 
-config(); // Loads .env
+dotenv.config();
 
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
+const SHEET_ID = "149gY7myL9-nE5Q_Mz8PnIBkQF5_Ettql0lVIEuF0Qgg";
+const RANGE = "Sheet1!A2:D";
+
+const credentialsB64 = process.env.GOOGLE_SERVICE_KEY_B64;
+if (!credentialsB64) {
+  throw new Error("GOOGLE_SERVICE_KEY_B64 is not defined in the environment.");
+}
+
+const credentials = JSON.parse(Buffer.from(credentialsB64, "base64").toString("utf-8"));
+
 const auth = new google.auth.GoogleAuth({
-  keyFile: "./credentials.json", // Path to your JSON file
+  credentials,
   scopes: SCOPES,
 });
-
-const SHEET_ID = "149gY7myL9-nE5Q_Mz8PnIBkQF5_Ettql0lVIEuF0Qgg"; // Replace with your sheet ID
-const RANGE = "Sheet1!A2:D"; // Adjust sheet name if not "Sheet1"
 
 async function readSheet() {
   const client = await auth.getClient();
@@ -29,7 +37,7 @@ async function readSheet() {
   const FLAGS = ["No email found", "NO FB PAGE", "Error"];
 
   rows.forEach((row, i) => {
-    const rowNum = i + 2; // because we start from A2
+    const rowNum = i + 2;
     const colA = row[0] || "";
     const colB = row[1] || "";
     const colC = row[2] || "";
@@ -38,15 +46,24 @@ async function readSheet() {
     if (!colD.trim()) {
       emptyD.push({ rowNum, colA, colB, colC });
     } else if (FLAGS.some(flag => colD.trim().toLowerCase() === flag.toLowerCase())) {
-        flaggedD.push({ rowNum, colA, colB, colC });
+      flaggedD.push({ rowNum, colA, colB, colC });
     }
   });
 
-  console.log("Rows with blank Column D:");
-  console.log(emptyD);
+  console.log("✅ Rows with blank Column D:", emptyD);
+  console.log("🚩 Rows with flagged Column D:", flaggedD);
 
-  console.log("\nRows with flagged Column D:");
-  console.log(flaggedD);
+  return { flaggedD, emptyD };
 }
 
-readSheet();
+async function main() {
+  const { flaggedD } = await readSheet();
+
+  if (flaggedD.length > 0) {
+    await crawlAndWriteToGoogleSheet(flaggedD, SHEET_ID, "Sheet1");
+  } else {
+    console.log("🎉 No flagged rows found, nothing to crawl.");
+  }
+}
+
+main();
