@@ -1,14 +1,15 @@
 // errorIndex.js
-import { config } from "dotenv";
+// import "dotenv";
+import dotenv from 'dotenv';
 import { Hyperbrowser } from "@hyperbrowser/sdk";
 import * as XLSX from "xlsx/xlsx.mjs";           // ESM build
 import { readFileSync, writeFileSync } from "fs";
 import { parseColumns } from "./parseErrorColumns.js";
 
-config(); // Load HYPERBROWSER_API_KEY
+dotenv.config();
 
 const client = new Hyperbrowser({
-  apiKey: "hb_39dbccf019ab326fe91bbf4f3a67",
+  apiKey: process.env.HYPERBROWSER_API_KEY,
 });
 
 // Helper: extract emails via regex from raw HTML
@@ -33,7 +34,7 @@ function extractFacebookUrls(html) {
 }
 
 async function main() {
-  const filePath = "./test1.xlsx";
+  const filePath = "./test2.xlsx";
 
   // 1) Load workbook into a Buffer (Node ESM) :contentReference[oaicite:2]{index=2}
   const buf      = readFileSync(filePath);

@@ -1,5 +1,5 @@
 import { Hyperbrowser } from "@hyperbrowser/sdk";
-import { config } from "dotenv";
+import dotenv from 'dotenv';
 import { connect } from "puppeteer-core";
 import { setTimeout } from "node:timers/promises";
 import { parseColumns } from './parseColumns.js';
@@ -9,14 +9,14 @@ import * as XLSX from 'xlsx/xlsx.mjs';
 import * as fs from 'fs';
 import Fuse from 'fuse.js';
 
-config();
+dotenv.config();
 
-const client = new Hyperbrowser({ apiKey: "hb_39dbccf019ab326fe91bbf4f3a67" });
+const client = new Hyperbrowser({ apiKey: process.env.HYPERBROWSER_API_KEY });
 const session = await client.sessions.create();
 const browser = await connect({ browserWSEndpoint: session.wsEndpoint, defaultViewport: null });
 const limit = pLimit(5);
 
-const filePath = './test1.xlsx';
+const filePath = './test2.xlsx';
 const fileBuffer = fs.readFileSync(filePath);
 const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
 const sheetName = workbook.SheetNames[0];
@@ -146,7 +146,7 @@ console.log("Processing finished or 24 rows processed.");
 console.log('All rows processed.');
 
 
-
+await browser.close();
 
 
 //experimental part ends here
