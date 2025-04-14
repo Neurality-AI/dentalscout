@@ -1,16 +1,12 @@
-// errorIndex.js
-// import "dotenv";
+// hyperbrowserModule.js
 import dotenv from 'dotenv';
 import { Hyperbrowser } from "@hyperbrowser/sdk";
-import * as XLSX from "xlsx/xlsx.mjs";           // ESM build
+import * as XLSX from "xlsx/xlsx.mjs";
 import { readFileSync, writeFileSync } from "fs";
-import { parseColumns } from "./parseErrorColumns.js";
 
 dotenv.config();
 
-const client = new Hyperbrowser({
-  apiKey: process.env.HYPERBROWSER_API_KEY,
-});
+const client = new Hyperbrowser({ apiKey: process.env.HYPERBROWSER_API_KEY });
 
 // Helper: extract emails via regex from raw HTML
 function extractEmailsFromHtml(html) {
@@ -22,35 +18,29 @@ function extractFacebookUrls(html) {
   const urls = new Set();
   let m;
 
-  // <a href="https://facebook.com/…">
   const linkRe = /href=["'](https?:\/\/(?:www\.)?facebook\.com\/[^"']+)["']/g;
   while ((m = linkRe.exec(html))) urls.add(m[1]);
 
-  // onclick="…facebook.com/…"
   const onClickRe = /onclick=["'][^"']*(https?:\/\/(?:www\.)?facebook\.com\/[^"']+)[^"']*["']/g;
   while ((m = onClickRe.exec(html))) urls.add(m[1]);
 
   return Array.from(urls);
 }
 
-async function main() {
-  const filePath = "./test2.xlsx";
+export async function crawlAndWriteToSheet(dataRows, filePath) {
+  const buf = readFileSync(filePath);
+  const wb = XLSX.read(buf, { type: "buffer" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
 
-  // 1) Load workbook into a Buffer (Node ESM) :contentReference[oaicite:2]{index=2}
-  const buf      = readFileSync(filePath);
-  const wb       = XLSX.read(buf, { type: "buffer" });
-  const ws       = wb.Sheets[wb.SheetNames[0]];
+  for (const row of dataRows) {
+    const rowIndex = row[0];
+    const rawUrl = row[2]; // Column B (index 2)
 
-  // 2) Only rows marked for retry
-  const rows = await parseColumns(filePath);
-
-  for (const { rowIndex, colB: rawUrl } of rows) {
     if (!rawUrl) continue;
-    const url       = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
+    const url = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
     const emailCell = `D${rowIndex}`;
-    const noteCell  = `F${rowIndex}`;
+    const noteCell = `F${rowIndex}`;
 
-    // 3) Crawl the site (follow links, up to 5 pages) :contentReference[oaicite:3]{index=3}
     let crawlResult;
     try {
       crawlResult = await client.crawl.startAndWait({
@@ -68,7 +58,6 @@ async function main() {
       continue;
     }
 
-    // 4) Aggregate emails and facebook URLs
     let emails = [];
     const fbUrls = new Set();
 
@@ -79,7 +68,6 @@ async function main() {
       extractFacebookUrls(html).forEach(u => fbUrls.add(u));
     }
 
-    // 5) Crawl each FB link once for additional emails
     for (const fbUrl of fbUrls) {
       try {
         const fbCrawl = await client.crawl.startAndWait({
@@ -93,26 +81,22 @@ async function main() {
           emails.push(...extractEmailsFromHtml(page.html || ""));
         }
       } catch {
-        // ignore FB crawl errors
+        // Ignore FB crawl errors
       }
     }
 
-    // 6) Dedupe & write back if we found any
     emails = Array.from(new Set(emails));
     console.log(`Row ${rowIndex}, URL: ${url} ➜ Found emails:`, emails);
 
     if (emails.length > 0) {
       const joined = emails.join(", ");
       ws[emailCell] = { t: "s", v: joined };
-      ws[noteCell]  = { t: "s", v: "Found from URL" };
+      ws[noteCell] = { t: "s", v: "Found from URL" };
     }
   }
 
-  // 7) Overwrite the same file :contentReference[oaicite:4]{index=4}
   const outBuf = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
   writeFileSync(filePath, outBuf);
 
-  console.log("🎯 All done. Results saved to", filePath);
+  console.log("✅ Crawling complete. Updates saved to", filePath);
 }
-
-main();
