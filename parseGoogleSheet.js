@@ -2,6 +2,7 @@
 import { google } from "googleapis";
 import dotenv from "dotenv";
 import { crawlAndWriteToGoogleSheet } from "./errorIndex.js"; // Adjust path if needed
+import { processRows } from './index.js';
 
 dotenv.config();
 
@@ -57,7 +58,13 @@ async function readSheet() {
 }
 
 async function main() {
-  const { flaggedD } = await readSheet();
+  const { flaggedD, emptyD } = await readSheet();
+
+  if (emptyD.length > 0) {
+    await processRows(emptyD, SHEET_ID, "Sheet1");
+  } else {
+    console.log("🎉 No flagged rows found, nothing to crawl.");
+  }
 
   if (flaggedD.length > 0) {
     await crawlAndWriteToGoogleSheet(flaggedD, SHEET_ID, "Sheet1");
