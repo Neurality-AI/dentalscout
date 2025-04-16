@@ -50,7 +50,7 @@ export async function processRows(dataRows, spreadsheetId, sheetName) {
   let processedCount = 0;
   let failedCount = 0;
 
-  const tasks = dataRows.slice(0, 24).map(row => 
+  const tasks = dataRows.slice(0, 10).map(row => 
     limit(async () => {
       const { rowNum, colA: practice, colB: rawDomain, colC: owner } = row;
       if (!rawDomain) return;
