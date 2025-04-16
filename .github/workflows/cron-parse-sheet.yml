@@ -1,0 +1,32 @@
+name: Parse Google Sheet Cron Job
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # runs every 5 minutes
+  workflow_dispatch:       # manual trigger
+
+jobs:
+  parse_google_sheet:
+    name: Parse Google Sheet
+    runs-on: ubuntu-latest
+
+    env:
+      # Hardcoded API keys (not recommended for production)
+      HYPERBROWSER_API_KEY: hb_39dbccf019ab326fe91bbf4f3a67
+      GOOGLE_SERVICE_KEY_B64: >-
+        ewogICJ0eXBlIjogInNlcnZpY2VfYWNjb3VudCIsCiAgInByb2plY3RfaWQiOiAiZGVudGFsLXNjb3V0IiwKICAicHJpdmF0ZV9rZXlfaWQiOiAiNjQxZTE5NzEzNzRhOTVkNDQyODY1YjFjMDZjZTI4ZmQzNmNjOTEzNiIsCiAgInByaXZhdGVfa2V5IjogIi0tLS0tQkVHSU4gUFJJVkFURSBLRVktLS0tLVxuTUlJRXZBSUJBREFOQmdrcWhraUc5dzBCQVFFRkFBU0NCS1l3Z2dTaUFnRUFBb0lCQVFDNVFPK3dER3huaFBFRlxuRzVJMUhCRGxCV0VvL01xSTF2MEFiVGhUOG9KWTVMV05ocVdJck9TcThzNHpEMS8yNXlJNUpuOUwxZ20xMHUzcFxudkNuaGNrcHF1MDRrYU1pVkVmdjFTU3UrU3A4SFAwcXh1akEySUU4VkFzdjM5bm44MG03Q3FxWkgwOEp4V3FPWVxuU0hGekVhRStzT3Q0ZWQ0eFJNN3lsSGRNWVZTQnI1YkdrZitJK05zaU5McGtpNWFOMXU2aU9SU3lZSWNlZS9mSVxuKzNRbmduUHk4L0VoTEFOSk9kWjBad3drSnpXNDFIbnYyL3hneFZNZFk5U3VpYndWeCtEZjVnckxCeUk2OEE1T1xuY2lLN1ZtNjkzSXlrdzRWTDY2YWRWd1BQZGpyRFdsTlRibUtzb21GUmZjRU5JTnVNNHlIdVpreUlhVTVoWDViSFxuOWc2b2JabGZBZ01CQUFFQ2dnRUFDcmtkQnFvNWJpYU9VdmJkR0REbk0zS0R4TDBaTmlHSHBJb3Q3QUlLRkg0c1xubWlRVW1kdzBJa2NLczM3czFaeGNhVVYyc2R1U1ZWRi96dnRDeTFkendralVSWnhCSEF2ZDh6MUlpR3ZHVjhPTVxubmN3Q3RXZGFYSU44YmY1NDRpOEdGVU9PZTNMZyt2RzlyWGRvQmJxY0JFWjJZdE5mRHFnR2VKa3FiS1Bub2RnQVxuVUNxSno2YWptK2hFek1HOU1iRmtqMVVQK0hNYnlUQ0gyWDRZUnRrQXlXMkIyTGwzZnVyQ2hKV21peldpS2pmSVxuL2xaek9nWHhYejRTTGhadUZDaTVaaTBCWmtpajd0MFFYUzViM1lKOG1vRnlzd3JjQ28yQXltKzYvMFlybWFBb1xuNXlGdktoQmwvV21GWTRISmx3LzBWd2dESzVRUGdTLzhob1BJcisyTXJRS0JnUURxNTE2cmtFMC8xQU1YSGZkaVxuamJQRllkZFpLdGV4WWlNM1A0ZFhYTE1FN0MyQm5ud043WGZ5TGNDbHNycU9vSjlzRG5KZk95MHdyQmxEUTd6a1xuRmwwT2s5OVhQOHpvV1FjRGZQd3RmWTNOQXJveGFwZ2R5NDlHdHlCY1FtTGNPdmV6cW4zSHpZczl2RXkzeXlXZlxuSHcwMERWUHNzYVFtQm9UbHowbzUzQXdhMHdLQmdRREo1QkhCbnE4WktPSXlBSmgxT25BQ0dIMlZPMFc5ZElYQ1xuM1JIZkhhbGRIVG80S0hsWllKbFdtcWZ4a2dwNDRNNXVSZDIzS2ViY2pPNEU1N1NTY3hrUGxEMkc0ajdFUWdIdFxucnJFSmRpMHMwTk9vQmtVK3RwMW41bkxBMjNKbElFNi9iTnRDbWtsUFFmTVEwR1Rvd2xzdXhCQk5jWWRlM1hoSlxuRkhRa3Qvd1h4UUtCZ0FUaXFQcGlkdWpUN1BpSEhBVUZzMjV3ZVgwV1FnUWphVjRWeVNmTStzQW9kVTNUMFBxdFxuTEtoeHdTYnhENlkxdXZzUlZkbWJMblpycmQ3VFF0TnZqNkhrKzJraUg0M1poQ2JUYTU4NmxEOW1SaDhPKzNqclxuS2VDcm9GV3EzOGw2eEhvTkdxNlVITWc4NlUrTlB3d1BKa1FsM3MvMlpkYVFuaVQxYWJMSVc4d1hBb0dBSDhPQlxuUTZ3NnNrT3JhdUNMSEE2SXB0dkJqbVFYOGRuT1hiMDRYWmttRjE5TTFKOFJrSTFSTXIzOFpGWnN6VjNaUEtKRFxuWXRqMTJJZFh2Mi9SQ2lXUHNOTEs1MWpiTlRlSlpDTFMrY0VkRkdyNmtmb0NsUDVZUDR1VFRHSjZXZ3krTndIaVxuY1ZVaTZaUmZzS3FJNWRJR1ZKSkdXbGpkU29DZnR5ZS9xak5FTjEwQ2dZQnZ5NGxoanIva2NHakwwL2NlVlYyVlxuMDJqclZFcFVaZ3ViYUx6c2N4eVlJaHZ3bGVwaXdGQmI4UW1yR2lDSkpTdFdLR3lUa2lSWDhpMnN1REtXK1lvVlxuVmtwTlhrQXBldGRTN29zd0JYZGxPcjFRR1FXbnZ2eVFhTTl2TmJPSCt4c0M0Z0hJa2xoTXZjbjZvRmZRd2Yxc1xuS3FOcytiNXJhZ3ZzSDZhQWZ4RHJ6UT09
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run parseGoogleSheet script
+        run: node -e "import('./parseGoogleSheet.js').then(m => m.parseGoogleSheet())"

@@ -194,7 +194,7 @@ export async function crawlAndWriteToGoogleSheet(dataRows, spreadsheetId, sheetN
       finalEmail = emails[0]; // Otherwise, select the first valid email (company email)
     }
 
-    const finalValue = finalEmail || "No email found";
+    const finalValue = finalEmail || "Processed - No results";
     console.log(`📧 Row ${rowIndex}, URL: ${url} ➜ Final Email: ${finalValue}`);
 
     await updateGoogleSheet(sheets, rowIndex, spreadsheetId, sheetName, finalValue);

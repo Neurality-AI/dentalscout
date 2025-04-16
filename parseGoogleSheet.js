@@ -88,22 +88,50 @@ export async function parseGoogleSheet() {
     log("Starting Google Sheet parsing job...");
     const { flaggedD, emptyD } = await readSheet();
 
-    if (emptyD.length > 0) {
-      log(`Processing ${emptyD.length} empty rows...`);
-      await processRows(emptyD, SHEET_ID, "Sheet1");
+    // Get the actual number of rows to process (up to 10)
+    const emptyRowsToProcess = Math.min(emptyD.length, 10);
+    const flaggedRowsToProcess = Math.min(flaggedD.length, 10);
+
+    // Get the limited sets of rows
+    const limitedEmptyD = emptyD.slice(0, emptyRowsToProcess);
+    const limitedFlaggedD = flaggedD.slice(0, flaggedRowsToProcess);
+
+    // Process empty rows if any exist
+    if (emptyRowsToProcess > 0) {
+      log(`Processing ${emptyRowsToProcess} empty row${emptyRowsToProcess === 1 ? '' : 's'} (${emptyD.length} total available)`);
+      await processRows(limitedEmptyD, SHEET_ID, "Sheet1");
     } else {
       log("No empty rows found, skipping processing.");
     }
 
-    if (flaggedD.length > 0) {
-      log(`Processing ${flaggedD.length} flagged rows...`);
-      await crawlAndWriteToGoogleSheet(flaggedD, SHEET_ID, "Sheet1");
+    // Process flagged rows if any exist
+    if (flaggedRowsToProcess > 0) {
+      log(`Processing ${flaggedRowsToProcess} flagged row${flaggedRowsToProcess === 1 ? '' : 's'} (${flaggedD.length} total available)`);
+      await crawlAndWriteToGoogleSheet(limitedFlaggedD, SHEET_ID, "Sheet1");
     } else {
       log("No flagged rows found, skipping processing.");
     }
 
+    // Calculate remaining rows
+    const remainingEmpty = Math.max(0, emptyD.length - emptyRowsToProcess);
+    const remainingFlagged = Math.max(0, flaggedD.length - flaggedRowsToProcess);
+
     log("Job completed successfully");
-    return { success: true };
+    log(`Summary:
+    - Processed ${emptyRowsToProcess} empty rows (${remainingEmpty} remaining)
+    - Processed ${flaggedRowsToProcess} flagged rows (${remainingFlagged} remaining)`);
+
+    return { 
+      success: true,
+      processed: {
+        emptyRows: emptyRowsToProcess,
+        flaggedRows: flaggedRowsToProcess,
+        remainingEmpty,
+        remainingFlagged,
+        totalEmpty: emptyD.length,
+        totalFlagged: flaggedD.length
+      }
+    };
   } catch (error) {
     log(`Job failed: ${error.message}`);
     throw error;
