@@ -1,4 +1,3 @@
-// hyperbrowserGoogleModule.js
 import dotenv from 'dotenv';
 import { google } from 'googleapis';
 import { Hyperbrowser } from "@hyperbrowser/sdk";
@@ -45,55 +44,59 @@ export async function processRows(dataRows, spreadsheetId, sheetName) {
     defaultViewport: null,
   });
   const sheets = getSheetsClient();
-  const limit  = pLimit(5);
 
-  let processedCount = 0;
+  const limit  = pLimit(1); //TODO: check redudancy
+  let processedCount = 0; //TODO: check need
 
-  for (const row of dataRows) {
-    if (processedCount >= 24) break;
-
-    await limit(async () => {
-      // <-- FIXED: destructure rowNum, not rowIndex -->
+  const tasks = dataRows.slice(0, 24).map(row => 
+    limit(async () => {
       const { rowNum, colA: practice, colB: rawDomain, colC: owner } = row;
       if (!rawDomain) return;
-
+  
       const page = await browser.newPage();
       try {
         const url = rawDomain.startsWith("http")
           ? rawDomain
           : `https://${rawDomain}`;
         console.log(`🔍 Row ${rowNum}: ${practice} – ${owner} @ ${url}`);
-
-        // Navigate & prep
+  
         await page.goto("about:blank");
         await setUserAgent(page);
         await goToGoogle(page);
         await acceptCookies(page);
-
-        // Search & scrape
+  
         await searchFacebookPage(page, practice, owner);
         const links = await scrapeGoogleLinks(page);
+        console.log(`🔗 Found ${links.length} links`);
         const [emails, phones] = await findEmailFromLinks(page, links, practice, owner);
-
-        // <-- PICK FIRST ELEMENT (no [0][0] trick) -->
+        console.log(`📧 Emails: ${emails.length}, Phones: ${phones.length}`);
+  
         const email = emails[0] || "No email found";
         const phone = phones[0] || "No phone found";
-
-        // Write live to Google Sheet
+  
         await updateCell(sheets, spreadsheetId, sheetName, `D${rowNum}`, email);
         await updateCell(sheets, spreadsheetId, sheetName, `E${rowNum}`, phone);
-
+  
         console.log(`✅ Row ${rowNum}: ${email}, ${phone}`);
-        processedCount++;
       } catch (err) {
         console.error(`❌ Row ${row.rowNum} error:`, err.message);
         await updateCell(sheets, spreadsheetId, sheetName, `D${row.rowNum}`, "Error");
         await updateCell(sheets, spreadsheetId, sheetName, `E${row.rowNum}`, "Error");
       } finally {
-        await page.close();
+        try {
+          if (!page.isClosed()) await page.close();
+        } catch (err) {
+          console.warn(`⚠️ Error closing page for row ${rowNum}: ${err.message}`);
+        }
       }
-    });
-  }
+    })
+  );
+  
+  // Run all tasks in parallel (limited by pLimit)
+  await Promise.all(tasks);
+  await browser.close();
+  console.log(`🎯 Done: processed ${Math.min(24, dataRows.length)} rows.`);
+  
 
   await browser.close();
   console.log(`🎯 Done: processed ${processedCount} rows.`);
@@ -123,7 +126,9 @@ async function acceptCookies(page) {
 
 async function searchFacebookPage(page, businessName, personName) {
   const query = `${businessName} ${personName} facebook`;
+  console.log(`🔍 Searching for: ${query}`);
   const url   = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+  console.log(`🔗 Google URL: ${url}`);
   await page.setExtraHTTPHeaders({ "accept-language": "en-US,en;q=0.9" });
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
   await setTimeout(500 + Math.random() * 500);
@@ -136,17 +141,31 @@ async function scrapeGoogleLinks(page) {
   );
 }
 
+// function getFacebookAboutURL(fbLink) {
+//   if (/^https?:\/\/(www\.)?facebook\.com\//.test(fbLink)) {
+//     const m = /^(https?:\/\/[^\/]+\/)([^\/?#]+)/.exec(fbLink);
+//     return m ? `${m[1]}${m[2]}/about` : fbLink;
+//   }
+//   return fbLink;
+// }
 function getFacebookAboutURL(fbLink) {
   if (/^https?:\/\/(www\.)?facebook\.com\//.test(fbLink)) {
-    const m = /^(https?:\/\/[^\/]+\/)([^\/?#]+)/.exec(fbLink);
-    return m ? `${m[1]}${m[2]}/about` : fbLink;
+    // Normalize trailing slash
+    const normalized = fbLink.replace(/\/+$/, '');
+
+    // Don’t append if already ends in /about
+    if (normalized.endsWith('/about')) return fbLink;
+
+    return `${normalized}/about`;
   }
   return fbLink;
 }
 
+
 async function visitFacebookAbout(page, aboutUrl) {
   await page.goto(aboutUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForSelector("body", { visible: true, timeout: 10000 });
+  console.log(`🔗 Visiting: ${aboutUrl}`);
 }
 
 async function extractContactInfo(page) {
@@ -203,6 +222,7 @@ export async function findEmailFromLinks(page, links, practice, ownerName) {
 
   for (let i = 0; i < links.length && (emails.length === 0 || phones.length === 0); i++) {
     const aboutLink = getFacebookAboutURL(links[i]);
+    console.log(`🔗 Visiting: ${aboutLink}`);
     if (!aboutLink) continue;
     if (aboutLink.includes("facebook.com")) fbPagesVisited++;
 
@@ -215,18 +235,22 @@ export async function findEmailFromLinks(page, links, practice, ownerName) {
     let pageName;
     try {
       pageName = await page.$eval('h1', el => el.innerText.trim());
+      console.log(`📄 Page name: ${pageName}`);
     } catch {
       pageName = await page.title();
     }
 
     if (!isLikelyMatch(practice, pageName, ownerName)) continue;
+    console.log(`✅ Likely match: ${pageName}`);
 
     const { emails: e, phones: p } = await extractContactInfo(page);
     if (!emails.length && e.length) emails.push(...e);
     if (!phones.length && p.length) phones.push(...p);
+    console.log(`📧 Found emails: ${emails.length}, phones: ${phones.length}`);
   }
 
   if (!fbPagesVisited) {
+    console.log("❌ No Facebook pages visited, returning empty results.");
     return [
       emails.length ? emails : ["NO FB PAGE"],
       phones.length ? phones : ["NO FB PAGE"]
