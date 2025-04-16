@@ -15,6 +15,18 @@ if (!process.env.HYPERBROWSER_API_KEY) {
 // List of domains we consider personal email providers
 const personalEmailDomains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com", "protonmail.com", "icloud.com"];
 
+// List of domains to exclude (monitoring services, error tracking, etc.)
+const excludedEmailDomains = [
+  "sentry.io",
+  "sentry-next.wixpress.com",
+  "newrelic.com",
+  "datadoghq.com",
+  "rollbar.com",
+  "bugsnag.com",
+  "airbrake.io",
+  "raygun.com"
+];
+
 // Function to validate if a string is a valid email
 function isValidEmail(email) {
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -26,10 +38,18 @@ function isPersonalEmail(email) {
   return personalEmailDomains.some(domain => email.endsWith("@" + domain));
 }
 
+// Function to check if email should be excluded
+function isExcludedEmail(email) {
+  return excludedEmailDomains.some(domain => email.endsWith("@" + domain));
+}
+
 // Function to extract valid emails from HTML
 function extractEmailsFromHtml(html) {
-  const emails = (html.match(/[\w.-]+@[\w.-]+\.\w+/g) || []).map(email => email.toLowerCase());
-  return emails.filter(isValidEmail); // Return only valid emails
+  const emails = (html.match(/[\w.-]+@[\w.-]+\.\w+/g) || [])
+    .map(email => email.toLowerCase())
+    .filter(isValidEmail) // Filter valid emails
+    .filter(email => !isExcludedEmail(email)); // Filter out excluded domains
+  return emails;
 }
 
 // Function to extract Facebook URLs from HTML
@@ -161,7 +181,8 @@ export async function crawlAndWriteToGoogleSheet(dataRows, spreadsheetId, sheetN
       }
     }
 
-    emails = Array.from(new Set(emails)); // Deduplicate
+    emails = Array.from(new Set(emails)) // Deduplicate
+      .filter(email => !isExcludedEmail(email)); // Additional filter for excluded emails
 
     // Prioritize personal emails, if available
     let finalEmail = null;
