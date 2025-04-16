@@ -36,17 +36,19 @@ export async function processRows(dataRows, spreadsheetId, sheetName) {
     throw new Error("Missing HYPERBROWSER_API_KEY");
   }
 
-  // 1) Start Hyperbrowser + Puppeteer
+  // 1) Start Hyperbrowser + Puppeteer with increased timeouts
   const client  = new Hyperbrowser({ apiKey: process.env.HYPERBROWSER_API_KEY });
   const session = await client.sessions.create();
   const browser = await connect({
     browserWSEndpoint: session.wsEndpoint,
     defaultViewport: null,
+    protocolTimeout: 120000, // Increase protocol timeout to 2 minutes
   });
   const sheets = getSheetsClient();
 
-  const limit  = pLimit(1); //TODO: check redudancy
-  let processedCount = 0; //TODO: check need
+  const limit  = pLimit(1); // Process one row at a time
+  let processedCount = 0;
+  let failedCount = 0;
 
   const tasks = dataRows.slice(0, 24).map(row => 
     limit(async () => {
@@ -55,6 +57,10 @@ export async function processRows(dataRows, spreadsheetId, sheetName) {
   
       const page = await browser.newPage();
       try {
+        // Set page timeouts
+        await page.setDefaultNavigationTimeout(60000); // 60 seconds
+        await page.setDefaultTimeout(30000); // 30 seconds
+        
         const url = rawDomain.startsWith("http")
           ? rawDomain
           : `https://${rawDomain}`;
@@ -78,10 +84,12 @@ export async function processRows(dataRows, spreadsheetId, sheetName) {
         await updateCell(sheets, spreadsheetId, sheetName, `E${rowNum}`, phone);
   
         console.log(`✅ Row ${rowNum}: ${email}, ${phone}`);
+        processedCount++;
       } catch (err) {
         console.error(`❌ Row ${row.rowNum} error:`, err.message);
         await updateCell(sheets, spreadsheetId, sheetName, `D${row.rowNum}`, "Error");
         await updateCell(sheets, spreadsheetId, sheetName, `E${row.rowNum}`, "Error");
+        failedCount++;
       } finally {
         try {
           if (!page.isClosed()) await page.close();
@@ -95,11 +103,7 @@ export async function processRows(dataRows, spreadsheetId, sheetName) {
   // Run all tasks in parallel (limited by pLimit)
   await Promise.all(tasks);
   await browser.close();
-  console.log(`🎯 Done: processed ${Math.min(24, dataRows.length)} rows.`);
-  
-
-  await browser.close();
-  console.log(`🎯 Done: processed ${processedCount} rows.`);
+  console.log(`🎯 Done: processed ${processedCount} rows successfully, ${failedCount} rows failed.`);
 }
 
 
@@ -130,7 +134,10 @@ async function searchFacebookPage(page, businessName, personName) {
   const url   = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
   console.log(`🔗 Google URL: ${url}`);
   await page.setExtraHTTPHeaders({ "accept-language": "en-US,en;q=0.9" });
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.goto(url, { 
+    waitUntil: "domcontentloaded", 
+    timeout: 60000 
+  });
   await setTimeout(500 + Math.random() * 500);
   await page.mouse.move(100, 100);
 }
@@ -153,7 +160,7 @@ function getFacebookAboutURL(fbLink) {
     // Normalize trailing slash
     const normalized = fbLink.replace(/\/+$/, '');
 
-    // Don’t append if already ends in /about
+    // Don't append if already ends in /about
     if (normalized.endsWith('/about')) return fbLink;
 
     return `${normalized}/about`;

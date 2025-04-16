@@ -94,6 +94,8 @@ async function updateGoogleSheet(sheets, rowIndex, spreadsheetId, sheetName, val
 export async function crawlAndWriteToGoogleSheet(dataRows, spreadsheetId, sheetName) {
   console.log("🚀 Starting crawlAndWriteToGoogleSheet...");
   const sheets = getGoogleSheetsClient();
+  let processedCount = 0;
+  let failedCount = 0;
 
   for (const row of dataRows) {
     console.log(`🔍 Processing row: ${JSON.stringify(row)}`);
@@ -115,12 +117,13 @@ export async function crawlAndWriteToGoogleSheet(dataRows, spreadsheetId, sheetN
         scrapeOptions: {
           formats: ["html", "links"],
           onlyMainContent: false,
-          timeout: 30000,
+          timeout: 60000, // Increased timeout to 60 seconds
         },
       });
     } catch (err) {
       console.error(`❌ Row ${rowIndex}: Crawl failed for ${url}:`, err.message);
       await updateGoogleSheet(sheets, rowIndex, spreadsheetId, sheetName, "Error");
+      failedCount++;
       continue;
     }
 
@@ -143,7 +146,7 @@ export async function crawlAndWriteToGoogleSheet(dataRows, spreadsheetId, sheetN
           scrapeOptions: {
             formats: ["html"],
             onlyMainContent: false,
-            timeout: 30000,
+            timeout: 60000, // Increased timeout to 60 seconds
           },
         });
 
@@ -152,8 +155,9 @@ export async function crawlAndWriteToGoogleSheet(dataRows, spreadsheetId, sheetN
             emails.push(...extractEmailsFromHtml(page.html || ""));
           }
         }
-      } catch {
-        // Ignore FB crawl errors
+      } catch (err) {
+        console.warn(`⚠️ Facebook crawl failed for ${fbUrl}: ${err.message}`);
+        // Continue with other URLs even if one fails
       }
     }
 
@@ -173,7 +177,8 @@ export async function crawlAndWriteToGoogleSheet(dataRows, spreadsheetId, sheetN
     console.log(`📧 Row ${rowIndex}, URL: ${url} ➜ Final Email: ${finalValue}`);
 
     await updateGoogleSheet(sheets, rowIndex, spreadsheetId, sheetName, finalValue);
+    processedCount++;
   }
 
-  console.log("✅ All rows processed and emails written to Google Sheet.");
+  console.log(`✅ All rows processed. Successfully processed: ${processedCount}, Failed: ${failedCount}`);
 }
