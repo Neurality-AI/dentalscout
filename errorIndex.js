@@ -123,7 +123,12 @@ export async function crawlAndWriteToGoogleSheet(dataRows, spreadsheetId, sheetN
     const rawUrl = row.colB;
 
     console.log(`🌐 Row ${rowIndex}: Raw URL: ${rawUrl}`);
-    if (!rawUrl) continue;
+    if (!rawUrl){
+      await updateGoogleSheet(sheets, rowIndex, spreadsheetId, sheetName, "Processed - No results");
+      continue;
+    }
+      
+      
 
     const url = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
     console.log(`🌐 Row ${rowIndex}: Crawling URL: ${url}`);
