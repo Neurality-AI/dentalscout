@@ -27,8 +27,8 @@ function log(message) {
 }
 
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
-const SHEET_ID = "149gY7myL9-nE5Q_Mz8PnIBkQF5_Ettql0lVIEuF0Qgg";
-const RANGE = "Sheet1!A2:D";
+const SHEET_ID = "1uzwwZy4eP-t7xVyqz-HbLU_dINnsLVZh9GWWtc_BBhI";
+const RANGE = "Owners!A2:D";
 
 const credentialsB64 = process.env.GOOGLE_SERVICE_KEY_B64;
 if (!credentialsB64) {
@@ -99,7 +99,7 @@ export async function parseGoogleSheet() {
     // Process empty rows if any exist
     if (emptyRowsToProcess > 0) {
       log(`Processing ${emptyRowsToProcess} empty row${emptyRowsToProcess === 1 ? '' : 's'} (${emptyD.length} total available)`);
-      await processRows(limitedEmptyD, SHEET_ID, "Sheet1");
+      await processRows(limitedEmptyD, SHEET_ID, "Owners");
     } else {
       log("No empty rows found, skipping processing.");
     }
@@ -107,7 +107,7 @@ export async function parseGoogleSheet() {
     // Process flagged rows if any exist
     if (flaggedRowsToProcess > 0) {
       log(`Processing ${flaggedRowsToProcess} flagged row${flaggedRowsToProcess === 1 ? '' : 's'} (${flaggedD.length} total available)`);
-      await crawlAndWriteToGoogleSheet(limitedFlaggedD, SHEET_ID, "Sheet1");
+      await crawlAndWriteToGoogleSheet(limitedFlaggedD, SHEET_ID, "Owners");
     } else {
       log("No flagged rows found, skipping processing.");
     }
