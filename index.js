@@ -129,7 +129,8 @@ async function acceptCookies(page) {
 }
 
 async function searchFacebookPage(page, businessName, personName) {
-  const query = `${businessName} ${personName} facebook`;
+  const uniqueQueryPart = businessName === personName ? businessName : `${businessName} ${personName}`;
+  const query = `${uniqueQueryPart} facebook`;
   console.log(`🔍 Searching for: ${query}`);
   const url   = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
   console.log(`🔗 Google URL: ${url}`);
@@ -141,6 +142,7 @@ async function searchFacebookPage(page, businessName, personName) {
   await setTimeout(500 + Math.random() * 500);
   await page.mouse.move(100, 100);
 }
+
 
 async function scrapeGoogleLinks(page) {
   return page.evaluate(() =>
