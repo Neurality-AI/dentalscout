@@ -5,6 +5,7 @@ import { crawlAndWriteToGoogleSheet } from "./errorIndex.js"; // Adjust path if 
 import { processRows } from './index.js';
 import fs from 'fs';
 import path from 'path';
+import { getNames } from './name.js';
 
 dotenv.config();
 
@@ -137,7 +138,8 @@ export async function parseGoogleSheet() {
     // Process emptyG rows if any exist
     if (emptyGToProcess > 0) {
       log(`Processing ${emptyGToProcess} emptyG row${emptyGToProcess === 1 ? '' : 's'} (${emptyG.length} total available)`);
-      // TODO: await processRows(limitedEmptyG, SHEET_ID, "Owners");
+      // TODO: await processRows(limitedEmptyG, SHEET_ID, "Owners"); - Call name.js
+      await getNames(limitedEmptyG, SHEET_ID, "Owners");
     } else {
       log("No emptyG rows found, skipping processing.");
     }
