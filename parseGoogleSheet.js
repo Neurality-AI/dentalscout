@@ -74,6 +74,7 @@ async function readSheet() {
         if (colD.trim() === "Processed - No results") {
           emptyG.push({ rowNum, colA, colB, colC, status: "Skip" }); // NEW: Mark to skip
         } else {
+          emptyG.push({ rowNum, colA, colB, colC, status: "Blank" }); // NEW: Mark to blank
           // Continue with existing logic for blank Column D and flagged D
           if (!colD.trim()) {
             emptyD.push({ rowNum, colA, colB, colC });
