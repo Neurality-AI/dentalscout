@@ -111,10 +111,12 @@ export async function parseGoogleSheet() {
     // Get the actual number of rows to process (up to 10)
     const emptyRowsToProcess = Math.min(emptyD.length, 10);
     const flaggedRowsToProcess = Math.min(flaggedD.length, 10);
+    const emptyGToProcess = Math.min(emptyG.length, 10); //NEW Added emptyGToProcess
 
     // Get the limited sets of rows
     const limitedEmptyD = emptyD.slice(0, emptyRowsToProcess);
     const limitedFlaggedD = flaggedD.slice(0, flaggedRowsToProcess);
+    const limitedEmptyG = emptyG.slice(0, emptyGToProcess); //NEW Added limitedEmptyG
 
     // Process empty rows if any exist
     if (emptyRowsToProcess > 0) {
@@ -132,24 +134,36 @@ export async function parseGoogleSheet() {
       log("No flagged rows found, skipping processing.");
     }
 
+    // Process emptyG rows if any exist
+    if (emptyGToProcess > 0) {
+      log(`Processing ${emptyGToProcess} emptyG row${emptyGToProcess === 1 ? '' : 's'} (${emptyG.length} total available)`);
+      // TODO: await processRows(limitedEmptyG, SHEET_ID, "Owners");
+    } else {
+      log("No emptyG rows found, skipping processing.");
+    }
     // Calculate remaining rows
     const remainingEmpty = Math.max(0, emptyD.length - emptyRowsToProcess);
     const remainingFlagged = Math.max(0, flaggedD.length - flaggedRowsToProcess);
+    const remainingEmptyG = Math.max(0, emptyG.length - emptyGToProcess);
 
     log("Job completed successfully");
     log(`Summary:
     - Processed ${emptyRowsToProcess} empty rows (${remainingEmpty} remaining)
-    - Processed ${flaggedRowsToProcess} flagged rows (${remainingFlagged} remaining)`);
+    - Processed ${flaggedRowsToProcess} flagged rows (${remainingFlagged} remaining)
+    - Processed ${emptyGToProcess} emptyG rows (${remainingEmptyG} remaining)`);
 
     return { 
       success: true,
       processed: {
         emptyRows: emptyRowsToProcess,
         flaggedRows: flaggedRowsToProcess,
+        emptyGToProcess: emptyGToProcess,
         remainingEmpty,
         remainingFlagged,
+        remainingEmptyG,
         totalEmpty: emptyD.length,
-        totalFlagged: flaggedD.length
+        totalFlagged: flaggedD.length,
+        totalEmptyG: emptyG.length
       }
     };
   } catch (error) {
