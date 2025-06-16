@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 import { Hyperbrowser } from '@hyperbrowser/sdk';
-import { openai } from 'openai';
+import OpenAI from 'openai';
 import { z } from 'zod';
 import dotenv from 'dotenv';
 
