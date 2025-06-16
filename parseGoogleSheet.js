@@ -28,7 +28,7 @@ function log(message) {
 
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
 const SHEET_ID = "1uzwwZy4eP-t7xVyqz-HbLU_dINnsLVZh9GWWtc_BBhI";
-const RANGE = "Owners!A2:D";
+const RANGE = "Owners!A2:D"; //TODO: change to Owners!A2:G
 
 const credentialsB64 = process.env.GOOGLE_SERVICE_KEY_B64;
 if (!credentialsB64) {
@@ -56,8 +56,10 @@ async function readSheet() {
     const rows = response.data.values || [];
     const emptyD = [];
     const flaggedD = [];
+    const emptyG = []; // NEW: Track rows with blank column G
 
     const FLAGS = ["No email found", "NO FB PAGE", "Error"];
+    const STATUS_IGNORE = ["Ready", "Skip"]; // NEW: Define statuses to ignore
 
     rows.forEach((row, i) => {
       const rowNum = i + 2;
@@ -65,18 +67,35 @@ async function readSheet() {
       const colB = row[1] || "";
       const colC = row[2] || "";
       const colD = row[3] || "";
+      const colG = row[6] || ""; // NEW: Read column G (Status)
 
-      if (!colD.trim()) {
-        emptyD.push({ rowNum, colA, colB, colC });
-      } else if (FLAGS.some(flag => colD.trim().toLowerCase() === flag.toLowerCase())) {
-        flaggedD.push({ rowNum, colA, colB, colC });
+      //New logic for column G and previous logic for column D and flagged D
+      if (!colG.trim()) {
+        if (colD.trim() === "Processed - No results") {
+          emptyG.push({ rowNum, colA, colB, colC, status: "Skip" }); // NEW: Mark to skip
+        } else {
+          // Continue with existing logic for blank Column D and flagged D
+          if (!colD.trim()) {
+            emptyD.push({ rowNum, colA, colB, colC });
+          } else if (FLAGS.some(flag => colD.trim().toLowerCase() === flag.toLowerCase())) {
+            flaggedD.push({ rowNum, colA, colB, colC });
+          }
+        }
+      } else if (!STATUS_IGNORE.includes(colG.trim())) {
+        // NEW: Only consider rows that are not marked Ready or Skip
+        if (!colD.trim()) {
+          emptyD.push({ rowNum, colA, colB, colC });
+        } else if (FLAGS.some(flag => colD.trim().toLowerCase() === flag.toLowerCase())) {
+          flaggedD.push({ rowNum, colA, colB, colC });
+        }
       }
     });
 
     log(`Found ${emptyD.length} rows with blank Column D`);
     log(`Found ${flaggedD.length} rows with flagged Column D`);
+    log(`Found ${emptyG.length} rows with blank Column G and 'Processed - No results' in Column D`);
 
-    return { flaggedD, emptyD };
+    return { flaggedD, emptyD, emptyG };
   } catch (error) {
     log(`Error reading sheet: ${error.message}`);
     throw error;
@@ -86,7 +105,7 @@ async function readSheet() {
 export async function parseGoogleSheet() {
   try {
     log("Starting Google Sheet parsing job...");
-    const { flaggedD, emptyD } = await readSheet();
+    const { flaggedD, emptyD, emptyG } = await readSheet();
 
     // Get the actual number of rows to process (up to 10)
     const emptyRowsToProcess = Math.min(emptyD.length, 10);
